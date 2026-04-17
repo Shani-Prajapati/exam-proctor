@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>AI Proctor — Phone Camera</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+<style>
+:root{
+  --bg:#0b0b0b;--M:#8B004A;--M50:rgba(139,0,74,.5);--Mglow:rgba(139,0,74,.35);
+  --P:#F2EFE7;--P55:rgba(242,239,231,.55);--P12:rgba(242,239,231,.12);
+  --green:#22c55e;--red:#ef4444;--amber:#f59e0b;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--P);font-family:'DM Sans',sans-serif;overflow:hidden;}
+
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(242,239,231,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(242,239,231,.04) 1px,transparent 1px);
+  background-size:38px 38px;
+}
+
+/* ── CAMERA FULLSCREEN ── */
+#cam-wrap{
+  position:fixed;inset:0;z-index:1;
+  display:flex;flex-direction:column;
+}
+#video{
+  width:100%;flex:1;
+  object-fit:cover;
+  transform:scaleX(-1); /* mirror like selfie cam */
+}
+
+/* ── TOP HUD ── */
+.hud-top{
+  position:absolute;top:0;left:0;right:0;z-index:10;
+  padding:10px 14px;
+  background:linear-gradient(180deg,rgba(0,0,0,.85),transparent);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.hud-title{
+  font-family:'Orbitron',sans-serif;
+  font-size:.7rem;font-weight:700;letter-spacing:.12em;color:var(--P);
+}
+.hud-title span{color:var(--M);}
+.hud-badge{
+  font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.14em;
+  padding:3px 9px;border-radius:20px;
+  border:1px solid rgba(34,197,94,.35);background:rgba(34,197,94,.08);color:var(--green);
+  display:flex;align-items:center;gap:5px;
+}
+.ldot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ── FACE RECT ── */
+#face-rect{
+  position:absolute;top:12%;left:10%;right:10%;bottom:20%;
+  border:2px solid var(--M);border-radius:12px;
+  box-shadow:0 0 24px var(--Mglow);
+  z-index:5;opacity:0;transition:all .3s;
+}
+#face-rect.show{opacity:1;}
+#face-rect.danger{border-color:var(--red)!important;box-shadow:0 0 28px rgba(239,68,68,.6)!important;}
+
+/* Corner decorators */
+.cb{position:absolute;width:22px;height:22px;border-color:var(--P55);border-style:solid;}
+.cb.tl{top:-2px;left:-2px;border-width:2px 0 0 2px;border-radius:4px 0 0 0;}
+.cb.tr{top:-2px;right:-2px;border-width:2px 2px 0 0;border-radius:0 4px 0 0;}
+.cb.bl{bottom:-2px;left:-2px;border-width:0 0 2px 2px;border-radius:0 0 0 4px;}
+.cb.br{bottom:-2px;right:-2px;border-width:0 2px 2px 0;border-radius:0 0 4px 0;}
+
+/* Scanline */
+.scanline{
+  position:absolute;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--P),transparent);
+  opacity:0;z-index:6;animation:scan 3s linear infinite;
+}
+@keyframes scan{0%{top:0;opacity:0}4%{opacity:.45}96%{opacity:.45}100%{top:100%;opacity:0}}
+
+/* ── BOTTOM HUD ── */
+.hud-bottom{
+  position:absolute;bottom:0;left:0;right:0;z-index:10;
+  padding:14px 16px 22px;
+  background:linear-gradient(0deg,rgba(0,0,0,.9),transparent);
+}
+.pred-label{
+  font-family:'Orbitron',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:.1em;
+  text-align:center;margin-bottom:6px;min-height:22px;transition:color .3s;
+  color:var(--P55);
+}
+.conf-bar-wrap{height:4px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;margin-bottom:8px;}
+.conf-bar{height:100%;border-radius:2px;background:var(--M);width:0%;transition:width .5s;}
+.chips-row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
+.chip{
+  display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;
+  border:1px solid rgba(242,239,231,.08);background:rgba(255,255,255,.03);
+  font-size:.56rem;letter-spacing:.04em;color:rgba(242,239,231,.4);
+}
+.chip.lit{color:var(--P);border-color:rgba(242,239,231,.15);}
+.cd{width:5px;height:5px;border-radius:50%;}
+.cd.g{background:var(--green);}
+.cd.a{background:var(--amber);}
+.cd.r{background:var(--red);}
+
+/* ── LOADING SCREEN ── */
+#loading-screen{
+  position:fixed;inset:0;z-index:100;
+  background:var(--bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  padding:24px;text-align:center;
+}
+.logo-ring{
+  width:54px;height:54px;border-radius:50%;
+  border:1px solid rgba(242,239,231,.3);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;box-shadow:0 0 20px var(--Mglow);
+}
+.logo-ring::after{
+  content:'';position:absolute;inset:-5px;border-radius:50%;
+  border:1px solid transparent;border-top-color:var(--M);
+  animation:spin 3s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-title{font-family:'Orbitron',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.1em;color:var(--P);}
+.load-sub{font-size:.65rem;color:rgba(242,239,231,.4);line-height:1.7;max-width:260px;}
+.load-status{
+  font-family:'Orbitron',sans-serif;font-size:.55rem;letter-spacing:.14em;
+  padding:6px 16px;border-radius:6px;
+  border:1px solid rgba(242,239,231,.1);color:rgba(242,239,231,.35);
+  background:rgba(255,255,255,.02);
+  min-width:220px;text-align:center;
+}
+.load-status.ok{color:var(--green);border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.05);}
+.load-status.err{color:var(--red);border-color:rgba(239,68,68,.3);}
+
+/* ── ERROR SCREEN ── */
+#error-screen{
+  position:fixed;inset:0;z-index:200;
+  background:var(--bg);
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:24px;text-align:center;
+}
+#error-screen.show{display:flex;}
+.err-icon{font-size:2.5rem;}
+.err-title{font-family:'Orbitron',sans-serif;font-size:.82rem;letter-spacing:.1em;color:var(--red);}
+.err-msg{font-size:.68rem;color:rgba(242,239,231,.45);line-height:1.7;max-width:280px;}
+.btn-retry{
+  padding:10px 24px;border:1px solid var(--M50);border-radius:8px;
+  background:linear-gradient(135deg,rgba(139,0,74,.2),rgba(139,0,74,.06));
+  color:var(--P);font-family:'Orbitron',sans-serif;font-size:.6rem;
+  font-weight:700;letter-spacing:.12em;cursor:pointer;
+  margin-top:6px;transition:all .2s;
+}
+.btn-retry:hover{box-shadow:0 0 16px var(--Mglow);}
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loading-screen">
+  <div class="logo-ring">
+    <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+      <circle cx="14" cy="14" r="11" stroke="#F2EFE7" stroke-width="1.4" opacity=".6"/>
+      <circle cx="14" cy="14" r="3" fill="#F2EFE7" opacity=".9"/>
+      <circle cx="14" cy="14" r="1.2" fill="#8B004A"/>
+    </svg>
+  </div>
+  <div class="load-title">AI Exam <span style="color:#8B004A">Proctor</span></div>
+  <div class="load-sub">Your phone will act as the exam camera. Please allow camera access when prompted.</div>
+  <div class="load-status" id="load-status">⏳ LOADING AI MODEL…</div>
+  <div class="load-status" id="load-cam-status" style="margin-top:4px;">📷 STARTING CAMERA…</div>
+</div>
+
+<!-- Error screen -->
+<div id="error-screen">
+  <div class="err-icon">⚠️</div>
+  <div class="err-title">SETUP FAILED</div>
+  <div class="err-msg" id="err-msg">Something went wrong. Please try again.</div>
+  <button class="btn-retry" onclick="location.reload()">↺ Retry</button>
+</div>
+
+<!-- Camera view -->
+<div id="cam-wrap" style="display:none;">
+  <div class="hud-top">
+    <div class="hud-title">AI Exam <span>Proctor</span></div>
+    <div class="hud-badge"><span class="ldot"></span>SENDING</div>
+  </div>
+
+  <video id="video" autoplay muted playsinline></video>
+  <div class="scanline"></div>
+
+  <div id="face-rect" class="show">
+    <b class="cb tl"></b><b class="cb tr"></b><b class="cb bl"></b><b class="cb br"></b>
+  </div>
+
+  <div class="hud-bottom">
+    <div class="pred-label" id="pred-label">🔍 SCANNING…</div>
+    <div class="conf-bar-wrap"><div class="conf-bar" id="conf-bar"></div></div>
+    <div class="chips-row">
+      <div class="chip lit" id="chip-model"><i class="cd g"></i>Model Ready</div>
+      <div class="chip lit" id="chip-cam"><i class="cd g"></i>Camera On</div>
+      <div class="chip" id="chip-conf"><i class="cd a"></i>Conf: —</div>
+      <div class="chip" id="chip-send"><i class="cd g"></i>Sending Data</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── GET SESSION TOKEN FROM URL ── */
+const params = new URLSearchParams(window.location.search);
+const TOKEN  = params.get('token') || '';
+const PHONE_TOKEN_KEY = 'proctor_phone_token';
+const PHONE_PRED_KEY  = 'proctor_phone_pred';
+const PHONE_PING_KEY  = 'proctor_phone_ping';
+
+const g = id => document.getElementById(id);
+
+let tmModel = null;
+let videoEl = null;
+let predInterval = null;
+let pingInterval = null;
+
+/* ── SHOW ERROR ── */
+function showError(msg){
+  g('loading-screen').style.display = 'none';
+  g('error-screen').classList.add('show');
+  g('err-msg').textContent = msg;
+}
+
+/* ── STEP 1: LOAD TEACHABLE MACHINE MODEL ── */
+async function loadModel(){
+  const st = g('load-status');
+  try{
+    tmModel = await tmImage.load('model/model.json','model/metadata.json');
+    const labels = tmModel.getClassLabels ? tmModel.getClassLabels() : [];
+    st.textContent = '✓ MODEL READY · ' + labels.join(' / ');
+    st.classList.add('ok');
+    return true;
+  } catch(e){
+    st.textContent = '⚠ MODEL ERROR: ' + e.message;
+    st.classList.add('err');
+    return false;
+  }
+}
+
+/* ── STEP 2: START PHONE CAMERA ── */
+async function startCamera(){
+  const cs = g('load-cam-status');
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} },
+      audio: false
+    });
+    videoEl = g('video');
+    videoEl.srcObject = stream;
+    await new Promise(r => videoEl.onloadedmetadata = r);
+    await videoEl.play();
+    cs.textContent = '✓ CAMERA ACTIVE';
+    cs.classList.add('ok');
+    return true;
+  } catch(e){
+    cs.textContent = '⚠ CAMERA ERROR: ' + e.message;
+    cs.classList.add('err');
+    return false;
+  }
+}
+
+/* ── STEP 3: START SENDING PREDICTIONS ── */
+function startSending(){
+  // Show camera view, hide loading
+  g('loading-screen').style.display = 'none';
+  g('cam-wrap').style.display = 'block';
+
+  // Ping the desktop every 1.5s to confirm connection
+  pingInterval = setInterval(()=>{
+    localStorage.setItem(PHONE_PING_KEY, Date.now().toString());
+  }, 1500);
+
+  // Run predictions every 500ms
+  predInterval = setInterval(async ()=>{
+    if(!tmModel || !videoEl || videoEl.readyState < 2 || !videoEl.videoWidth) return;
+    try{
+      const preds = await tmModel.predict(videoEl);
+      const top   = preds.reduce((a,b) => a.probability > b.probability ? a : b);
+      const conf  = (top.probability * 100).toFixed(1);
+      const label = (top.className || '').trim();
+
+      // Update phone UI
+      const confNum = parseFloat(conf);
+      g('pred-label').textContent = confNum > 75
+        ? (label.toLowerCase().includes('focused') ? '✓ FOCUSED' : label.toLowerCase().includes('phone') ? '📱 PHONE' : '⚠ ' + label.toUpperCase())
+        : '🔍 SCANNING…';
+      g('pred-label').style.color = confNum > 75
+        ? (label.toLowerCase().includes('focused') ? '#22c55e' : label.toLowerCase().includes('phone') ? '#f59e0b' : '#ef4444')
+        : 'rgba(242,239,231,.4)';
+      g('conf-bar').style.width = conf + '%';
+      g('conf-bar').style.background = confNum > 75 ? '#22c55e' : confNum > 50 ? '#f59e0b' : '#ef4444';
+      g('chip-conf').innerHTML = '<i class="cd ' + (confNum>75?'g':confNum>50?'a':'r') + '"></i>Conf: ' + conf + '%';
+      g('chip-conf').classList.add('lit');
+
+      // Face rect danger state
+      const fr = g('face-rect');
+      if(label.toLowerCase().includes('distracted') || label.toLowerCase().includes('phone')){
+        fr.classList.add('danger');
+      } else {
+        fr.classList.remove('danger');
+      }
+
+      // Send prediction payload to desktop via localStorage
+      const payload = { ts: Date.now(), preds: preds.map(p=>({className:p.className,probability:p.probability})) };
+      localStorage.setItem(PHONE_PRED_KEY, JSON.stringify(payload));
+
+    } catch(e){ console.warn('Pred error:', e); }
+  }, 500);
+}
+
+/* ── MAIN BOOT SEQUENCE ── */
+async function boot(){
+  // Validate token — make sure this session matches
+  const storedToken = localStorage.getItem(PHONE_TOKEN_KEY);
+  if(TOKEN && storedToken && TOKEN !== storedToken){
+    showError('Session token mismatch. Please scan the QR code again from the exam page.');
+    return;
+  }
+
+  const modelOk  = await loadModel();
+  if(!modelOk){ showError('Could not load the AI model. Make sure you opened this from the exam page QR code and the server is running.'); return; }
+
+  const camOk = await startCamera();
+  if(!camOk){ showError('Camera access was denied. Please allow camera permission in your browser settings and reload.'); return; }
+
+  startSending();
+}
+
+boot();
+
+/* Keep screen awake via NoSleep trick */
+document.addEventListener('click', ()=>{
+  const v = document.createElement('video');
+  v.setAttribute('loop','');v.setAttribute('muted','');v.setAttribute('playsinline','');
+  v.setAttribute('src','data:video/mp4;base64,AAAAIGZ0eXBtcDQyAAAAAG1wNDJtcDQxaXNvbWF2YzEAAAAIZnJlZQAAAu1tZGF0');
+  v.play().catch(()=>{});
+},{once:true});
+</script>
+</body>
+</html>
