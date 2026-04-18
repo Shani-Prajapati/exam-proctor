@@ -8,6 +8,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#0b0b0b;--P:#F2EFE7;--P55:rgba(242,239,231,.55);--P30:rgba(242,239,231,.30);--P12:rgba(242,239,231,.12);--P07:rgba(242,239,231,.07);--P04:rgba(242,239,231,.04);--Pglow:rgba(242,239,231,.22);--M:#8B004A;--M50:rgba(139,0,74,.50);--M25:rgba(139,0,74,.25);--M10:rgba(139,0,74,.10);--Mglow:rgba(139,0,74,.30);--green:#22c55e;--green15:rgba(34,197,94,.15);--red:#ef4444;--amber:#f59e0b;--glass:rgba(255,255,255,.028);--gborder:rgba(242,239,231,.07);--r:14px;--rs:8px;--ease:.28s cubic-bezier(.4,0,.2,1);}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -181,6 +183,30 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .btn-quiz-mode{width:100%;padding:8px;margin-top:6px;border:1px solid rgba(34,197,94,.35);border-radius:var(--rs);background:linear-gradient(135deg,rgba(34,197,94,.1),rgba(34,197,94,.05));color:var(--green);font-family:'Orbitron',sans-serif;font-size:.57rem;font-weight:700;letter-spacing:.1em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all var(--ease);}
 .btn-quiz-mode:hover{border-color:rgba(34,197,94,.65);box-shadow:0 0 14px rgba(34,197,94,.18);transform:translateY(-1px);}
 .btn-quiz-mode:disabled{opacity:.28;cursor:not-allowed;transform:none;}
+
+/* ── Get Camera button ── */
+.btn-get-cam{width:100%;padding:9px;margin-top:6px;border:1px solid rgba(139,0,74,.5);border-radius:var(--rs);background:linear-gradient(135deg,rgba(139,0,74,.18),rgba(139,0,74,.06));color:#d4607a;font-family:'Orbitron',sans-serif;font-size:.54rem;font-weight:700;letter-spacing:.1em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all var(--ease);}
+.btn-get-cam:hover{border-color:rgba(139,0,74,.8);box-shadow:0 0 14px rgba(139,0,74,.22);transform:translateY(-1px);}
+.btn-get-cam.cam-linked{border-color:rgba(34,197,94,.45);color:#22c55e;background:rgba(34,197,94,.07);}
+/* ── QR overlay ── */
+.qr-ov{display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.86);align-items:center;justify-content:center;}
+.qr-ov.show{display:flex;}
+.qr-modal{background:#0f0c10;border:1px solid rgba(139,0,74,.5);border-radius:18px;padding:26px 22px 20px;max-width:340px;width:92%;text-align:center;box-shadow:0 0 60px rgba(139,0,74,.22);animation:qrpop .3s ease;}
+@keyframes qrpop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+.qr-ttl{font-family:'Orbitron',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.16em;color:#F2EFE7;margin-bottom:3px;}
+.qr-sub{font-size:.62rem;color:rgba(242,239,231,.38);margin-bottom:16px;line-height:1.6;}
+.qr-box{width:180px;height:180px;margin:0 auto 14px;border-radius:10px;overflow:hidden;background:#fff;padding:8px;display:flex;align-items:center;justify-content:center;}
+.qr-stat{font-size:.6rem;letter-spacing:.07em;min-height:20px;margin-bottom:12px;transition:color .3s;color:rgba(245,158,11,.85);font-family:'Orbitron',sans-serif;}
+.qr-stat.ok{color:#22c55e;}.qr-stat.err{color:#ef4444;}
+.qr-steps{text-align:left;margin-bottom:14px;padding:9px 11px;border-radius:8px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05);}
+.qr-steps li{font-size:.6rem;color:rgba(242,239,231,.42);margin-bottom:5px;line-height:1.5;list-style:none;padding-left:14px;position:relative;}
+.qr-steps li::before{content:'→';position:absolute;left:0;color:rgba(139,0,74,.8);}
+.qr-note{font-size:.55rem;color:rgba(242,239,231,.2);margin-bottom:12px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,.015);}
+.btn-qr-close{width:100%;padding:9px;border:1px solid rgba(242,239,231,.1);border-radius:8px;background:transparent;color:rgba(242,239,231,.4);font-family:'DM Sans',sans-serif;font-size:.7rem;cursor:pointer;transition:all .2s;}
+.btn-qr-close:hover{border-color:rgba(139,0,74,.4);color:#F2EFE7;}
+/* Hidden phone-frame video element for model prediction */
+#phone-frame-img{display:none;position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
+
 @media(max-width:900px){.dash{grid-template-columns:1fr;height:auto}.center-panel{order:-1}}
 </style>
 </head>
@@ -198,6 +224,26 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
   </div>
   <button class="btn-exit-quiz" onclick="exitQuizMode()">✕ Exit Quiz Mode</button>
 </div>
+
+<!-- QR popup -->
+<div class="qr-ov" id="qr-ov">
+  <div class="qr-modal">
+    <div class="qr-ttl">📱 USE PHONE AS CAMERA</div>
+    <div class="qr-sub">Phone streams video → PC model detects.<br/>Same accuracy as local webcam.</div>
+    <div class="qr-box" id="qr-box"></div>
+    <div class="qr-stat" id="qr-stat">⏳ Waiting for phone…</div>
+    <ul class="qr-steps">
+      <li>Scan QR with your phone</li>
+      <li>Allow camera permission on phone</li>
+      <li>Place phone facing you on the desk</li>
+      <li>Click Start Exam on PC</li>
+    </ul>
+    <div class="qr-note">⚡ PC model detects — no angle/training mismatch</div>
+    <button class="btn-qr-close" onclick="closeQRPopup()">✓ Done — Close</button>
+  </div>
+</div>
+<!-- Hidden image — receives JPEG frames from phone, fed to PC model -->
+<img id="phone-frame-img" alt=""/>
 
 <div class="pdf-overlay" id="pdf-overlay"><div class="pdf-spinner"></div><div class="pdf-msg">GENERATING REPORT…</div></div>
 <header class="hdr">
@@ -232,6 +278,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
     <div class="grow"></div>
     <button class="btn-start" id="start-btn" onclick="startExam()"><span class="shine"></span><svg width="10" height="10" viewBox="0 0 11 11" fill="none" style="margin-right:5px;flex-shrink:0"><polygon points="2,1 10,5.5 2,10" fill="currentColor"/></svg>Start Exam</button>
     <button class="btn-reset" onclick="resetExam()">↺ Reset</button>
+    <button class="btn-get-cam" id="btn-get-cam" onclick="openQRPopup()">📱 Get Camera</button>
     <button class="btn-report" id="btn-report" onclick="generatePDFReport()" disabled>⬇ Download Report</button>
     <button class="btn-quiz-mode" id="btn-quiz" onclick="enterQuizMode()" disabled title="Enable this before switching to quiz tab">
       📋 Enable Quiz Mode
@@ -609,7 +656,24 @@ function startExam(){
   const btn=g('start-btn');
   btn.innerHTML='<span class="shine"></span><svg width="9" height="9" viewBox="0 0 10 10" fill="none" style="margin-right:5px"><rect x="1" y="1" width="3" height="8" rx="1" fill="currentColor"/><rect x="6" y="1" width="3" height="8" rx="1" fill="currentColor"/></svg>Monitoring…';
   btn.style.cursor='default';btn.onclick=null;
-  initCam();setResult('focused');
+  if(phoneCamMode && pcPeer){
+    // Phone cam mode — PC receives JPEG frames from phone, runs PC model on them
+    const ph=g('cam-ph');
+    ph.innerHTML='<svg width="44" height="44" viewBox="0 0 46 46" fill="none"><rect x="14" y="2" width="18" height="32" rx="4" stroke="#F2EFE7" stroke-width="1.5" opacity=".4"/><circle cx="23" cy="30" r="2" fill="#F2EFE7" opacity=".4"/></svg>📱 Phone Camera Active<span style="color:rgba(34,197,94,.7)">PC model detecting via phone feed</span>';
+    ph.style.display='flex';
+    g('wcam-container').classList.add('active');
+    g('face-rect').classList.add('show');
+    g('face-label').classList.add('show');
+    g('conf-overlay').classList.add('show');
+    setChip('chip-face','g','Phone Camera');
+    ['chip-face','chip-gaze','chip-conf'].forEach(id=>g(id).classList.add('lit'));
+    labelBuffer=[];
+    startPhoneFrameLoop();
+    addLog('Phone camera active — PC model running.','ok');
+  } else {
+    initCam();
+  }
+  setResult('focused');
   addLog('Session started.','ok');
   const qb=g('btn-quiz');if(qb)qb.disabled=false;
   S.ticks.push(setInterval(()=>{g('exam-dur').textContent=fmtD(Date.now()-S.startTime);},1000));
@@ -623,6 +687,12 @@ function resetExam(){
   document.removeEventListener('visibilitychange',onTabSwitch);
   if(sirenAudio){sirenAudio.pause();sirenAudio.currentTime=0;}
   g('beep-banner').style.display='none';
+  // Stop phone cam mode
+  if(phoneCamMode){ try{ if(pcConn) pcConn.send({cmd:'stop'}); }catch(e){} }
+  phoneCamMode=false;
+  labelBuffer=[];
+  const getCamBtn=g('btn-get-cam');
+  if(getCamBtn){getCamBtn.textContent='📱 Get Camera';getCamBtn.classList.remove('cam-linked');}
   const v=g('wcam-video');
   if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
   v.style.display='none';g('cam-ph').style.display='flex';
@@ -648,7 +718,129 @@ function resetExam(){
   addLog('Session reset.','');
 }
 
+/* ════════════════════════════════════════════════════════
+   PHONE CAMERA BRIDGE — PeerJS (WebRTC)
+   Architecture:
+     • Phone streams JPEG frames → PC via PeerJS DataChannel
+     • PC draws frames into a hidden <canvas>
+     • PC's OWN model predicts on that canvas
+     • handlePrediction() called exactly like local webcam
+     • Zero angle/training mismatch — PC model always decides
+════════════════════════════════════════════════════════ */
+let pcPeer       = null;   // PeerJS Peer on PC
+let pcConn       = null;   // DataConnection from phone
+let phoneCamMode = false;  // true when phone cam is active
+
+// Hidden canvas PC model reads frames from
+let phoneCanvas  = null;
+let phoneCtx     = null;
+let phoneFrameLoop = null;
+
+function openQRPopup(){
+  // Create/recreate the hidden prediction canvas
+  if(!phoneCanvas){
+    phoneCanvas = document.createElement('canvas');
+    phoneCanvas.width  = 224;
+    phoneCanvas.height = 224;
+    phoneCtx = phoneCanvas.getContext('2d');
+  }
+
+  g('qr-ov').classList.add('show');
+  g('qr-stat').className = 'qr-stat';
+  g('qr-stat').textContent = '⏳ Setting up connection…';
+  g('qr-box').innerHTML = '';
+
+  // Destroy old peer cleanly
+  if(pcPeer){ try{pcPeer.destroy();}catch(e){} pcPeer=null; }
+
+  pcPeer = new Peer({ debug:0 });
+
+  pcPeer.on('open', peerId=>{
+    const base     = window.location.href.replace(/\/[^\/]*$/, '/');
+    const phoneUrl = base + 'phone-cam.html?pid=' + encodeURIComponent(peerId);
+
+    try{
+      new QRCode(g('qr-box'),{
+        text: phoneUrl,
+        width:164, height:164,
+        colorDark:'#1a0010', colorLight:'#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e){
+      g('qr-box').innerHTML='<div style="font-size:.55rem;color:#8B004A;padding:8px;word-break:break-all">Share URL:<br/>'+phoneUrl+'</div>';
+    }
+
+    g('qr-stat').textContent = '⏳ Waiting for phone to scan…';
+
+    pcPeer.on('connection', conn=>{
+      pcConn = conn;
+      conn.on('open',()=>{
+        phoneCamMode = true;
+        g('qr-stat').className = 'qr-stat ok';
+        g('qr-stat').textContent = '✅ Phone connected! Click Start Exam.';
+        const btn = g('btn-get-cam');
+        if(btn){ btn.textContent='📱 Phone Cam: READY'; btn.classList.add('cam-linked'); }
+        addLog('Phone connected — PC model will process frames.','ok');
+      });
+
+      // Receive JPEG blobs from phone → draw onto phoneCanvas → PC model predicts
+      conn.on('data', data=>{
+        if(!S.running || !data) return;
+        if(data.type === 'frame' && data.blob){
+          drawPhoneFrame(data.blob);
+        }
+      });
+
+      conn.on('close',()=>{ addLog('Phone disconnected.','warn'); });
+      conn.on('error', e=>{ addLog('Phone cam error.','warn'); });
+    });
+  });
+
+  pcPeer.on('error', e=>{
+    g('qr-stat').className = 'qr-stat err';
+    g('qr-stat').textContent = '⚠ ' + e.type;
+  });
+}
+
+function closeQRPopup(){
+  g('qr-ov').classList.remove('show');
+}
+
+/* Draw incoming JPEG blob from phone onto phoneCanvas (224×224) */
+function drawPhoneFrame(blob){
+  if(!phoneCanvas || !phoneCtx) return;
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = ()=>{
+    phoneCtx.clearRect(0, 0, 224, 224);
+    phoneCtx.drawImage(img, 0, 0, 224, 224);
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+}
+
+/* Run PC model on the phone canvas — called every 500ms when exam is running */
+function startPhoneFrameLoop(){
+  if(phoneFrameLoop) clearInterval(phoneFrameLoop);
+  labelBuffer = [];
+
+  phoneFrameLoop = setInterval(async()=>{
+    if(!S.running){ clearInterval(phoneFrameLoop); return; }
+    if(!S.tmModel || !phoneCanvas) return;
+    // Only predict if canvas has real content (width/height exist)
+    try{
+      const preds = await S.tmModel.predict(phoneCanvas);
+      handlePrediction(preds);
+    } catch(e){}
+  }, 500);
+
+  // Store interval so resetExam can clear it
+  S.ticks.push(phoneFrameLoop);
+}
+
 function logOut(){
+  try{ if(pcConn) pcConn.close(); }catch(e){}
+  try{ if(pcPeer) pcPeer.destroy(); }catch(e){}
   const active=JSON.parse(localStorage.getItem('proctor_active_students')||'{}');
   if(active[session.id]){active[session.id].status='ended';localStorage.setItem('proctor_active_students',JSON.stringify(active));}
   localStorage.removeItem('proctor_session');window.location.href='login.html';
