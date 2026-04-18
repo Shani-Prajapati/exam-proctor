@@ -293,7 +293,7 @@ function connectToPeer(){
   phonePeer.on('error', e=>{
     setRow('ls-peer','err','✗ ' + e.type);
     if(e.type === 'peer-unavailable'){
-      showErr('Cannot reach PC.\n\n1. Keep exam.html open on PC\n2. Click "📱 Get Camera" on PC\n3. Scan the new QR code\n\nPC must have the QR popup open.');
+      showErr('Cannot reach PC.\n\n1. Keep index.html open on PC\n2. Click "📱 Get Camera" on PC\n3. Scan the new QR code\n\nPC must have the QR popup open.');
     } else {
       showErr('PeerJS error: ' + e.type + '\n\nReload and try again.');
     }
