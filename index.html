@@ -9,8 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#0b0b0b;--P:#F2EFE7;--P55:rgba(242,239,231,.55);--P30:rgba(242,239,231,.30);--P12:rgba(242,239,231,.12);--P07:rgba(242,239,231,.07);--P04:rgba(242,239,231,.04);--Pglow:rgba(242,239,231,.22);--M:#8B004A;--M50:rgba(139,0,74,.50);--M25:rgba(139,0,74,.25);--M10:rgba(139,0,74,.10);--Mglow:rgba(139,0,74,.30);--green:#22c55e;--green15:rgba(34,197,94,.15);--red:#ef4444;--amber:#f59e0b;--glass:rgba(255,255,255,.028);--gborder:rgba(242,239,231,.07);--r:14px;--rs:8px;--ease:.28s cubic-bezier(.4,0,.2,1);}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -189,22 +188,21 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .btn-get-cam{width:100%;padding:9px;margin-top:6px;border:1px solid rgba(139,0,74,.5);border-radius:var(--rs);background:linear-gradient(135deg,rgba(139,0,74,.18),rgba(139,0,74,.06));color:#d4607a;font-family:'Orbitron',sans-serif;font-size:.54rem;font-weight:700;letter-spacing:.1em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all var(--ease);}
 .btn-get-cam:hover{border-color:rgba(139,0,74,.8);box-shadow:0 0 14px rgba(139,0,74,.22);transform:translateY(-1px);}
 .btn-get-cam.cam-linked{border-color:rgba(34,197,94,.45);color:#22c55e;background:rgba(34,197,94,.07);}
-
-/* ── QR popup overlay ── */
-.qr-overlay{display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.84);align-items:center;justify-content:center;}
-.qr-overlay.show{display:flex;}
+/* ── QR overlay ── */
+.qr-ov{display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.85);align-items:center;justify-content:center;}
+.qr-ov.show{display:flex;}
 .qr-modal{background:#0f0c10;border:1px solid rgba(139,0,74,.5);border-radius:18px;padding:26px 22px 20px;max-width:340px;width:92%;text-align:center;box-shadow:0 0 60px rgba(139,0,74,.22);animation:qrpop .3s ease;}
 @keyframes qrpop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
-.qr-title{font-family:'Orbitron',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.16em;color:#F2EFE7;margin-bottom:3px;}
+.qr-ttl{font-family:'Orbitron',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.16em;color:#F2EFE7;margin-bottom:3px;}
 .qr-sub{font-size:.62rem;color:rgba(242,239,231,.38);margin-bottom:16px;line-height:1.6;}
-.qr-box{width:174px;height:174px;margin:0 auto 14px;border-radius:10px;overflow:hidden;background:#fff;padding:7px;display:flex;align-items:center;justify-content:center;}
-.qr-status{font-size:.6rem;letter-spacing:.08em;min-height:18px;margin-bottom:12px;transition:color .3s;color:rgba(242,239,231,.3);}
-.qr-status.waiting{color:rgba(245,158,11,.8);}
-.qr-status.connected{color:#22c55e;font-weight:600;}
-.qr-steps{text-align:left;margin-bottom:16px;padding:9px 11px;border-radius:8px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05);}
+.qr-box{width:180px;height:180px;margin:0 auto 14px;border-radius:10px;overflow:hidden;background:#fff;padding:8px;display:flex;align-items:center;justify-content:center;}
+.qr-stat{font-size:.6rem;letter-spacing:.07em;min-height:20px;margin-bottom:12px;transition:color .3s;color:rgba(245,158,11,.8);font-family:'Orbitron',sans-serif;}
+.qr-stat.ok{color:#22c55e;}
+.qr-stat.err{color:#ef4444;}
+.qr-steps{text-align:left;margin-bottom:14px;padding:9px 11px;border-radius:8px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05);}
 .qr-steps li{font-size:.6rem;color:rgba(242,239,231,.42);margin-bottom:5px;line-height:1.5;list-style:none;padding-left:14px;position:relative;}
 .qr-steps li::before{content:'→';position:absolute;left:0;color:rgba(139,0,74,.8);}
-.qr-firebase-note{font-size:.56rem;color:rgba(242,239,231,.22);margin-bottom:12px;line-height:1.5;padding:6px 8px;border-radius:6px;background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.04);}
+.qr-note{font-size:.55rem;color:rgba(242,239,231,.2);margin-bottom:12px;line-height:1.5;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,.015);}
 .btn-qr-close{width:100%;padding:9px;border:1px solid rgba(242,239,231,.1);border-radius:8px;background:transparent;color:rgba(242,239,231,.4);font-family:'DM Sans',sans-serif;font-size:.7rem;cursor:pointer;transition:all .2s;}
 .btn-qr-close:hover{border-color:rgba(139,0,74,.4);color:#F2EFE7;}
 
@@ -227,19 +225,19 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 </div>
 
 <!-- QR Camera Popup -->
-<div class="qr-overlay" id="qr-overlay">
+<div class="qr-ov" id="qr-ov">
   <div class="qr-modal">
-    <div class="qr-title">📱 PHONE AS CAMERA</div>
-    <div class="qr-sub">Scan QR with your phone — phone camera will detect cheating in real-time via Firebase.</div>
+    <div class="qr-ttl">📱 USE PHONE AS CAMERA</div>
+    <div class="qr-sub">Scan with your phone — no WiFi restriction,<br/>works on any network via PeerJS (WebRTC).</div>
     <div class="qr-box" id="qr-box"></div>
-    <div class="qr-status waiting" id="qr-status">⏳ Waiting for phone to connect…</div>
+    <div class="qr-stat" id="qr-stat">⏳ Waiting for phone to scan…</div>
     <ul class="qr-steps">
-      <li>Scan the QR code with your phone camera</li>
-      <li>Allow camera permission on the phone</li>
-      <li>Keep phone screen ON throughout exam</li>
-      <li>Click Start Exam on PC — detection begins</li>
+      <li>Scan QR code with your phone camera</li>
+      <li>Allow camera permission on phone</li>
+      <li>Wait for "Connected" status above</li>
+      <li>Click Start Exam on PC — phone detects</li>
     </ul>
-    <div class="qr-firebase-note">⚡ Uses Firebase Realtime DB — works on any network</div>
+    <div class="qr-note">⚡ Peer-to-peer via PeerJS — no config needed, works on GitHub Pages</div>
     <button class="btn-qr-close" onclick="closeQRPopup()">✓ Done — Close</button>
   </div>
 </div>
@@ -423,25 +421,52 @@ function startPredictionLoop(video){
 
 function handlePrediction(preds){
   if(!S.running||!preds||preds.length===0)return;
+
+  // ── GET ALL CLASS PROBABILITIES ──
+  // Model labels: "focused", "distracted", "using phone"
+  let focusedProb=0, distractedProb=0, phoneProb=0;
+  preds.forEach(p=>{
+    const lbl=(p.className||'').trim().toLowerCase();
+    if(lbl==='focused')          focusedProb   = p.probability;
+    else if(lbl==='distracted')  distractedProb= p.probability;
+    else if(lbl==='using phone') phoneProb     = p.probability;
+  });
+
   let top=preds.reduce((a,b)=>a.probability>b.probability?a:b);
   const rawLabel=top.className||'';
-  // EXACT label match — trim and lowercase to match model labels precisely
-  // Model labels: "focused", "distracted", "using phone"
-  const label=rawLabel.trim().toLowerCase();
-  const conf=(top.probability*100).toFixed(1);
-  const confNum=parseFloat(conf);
+  const confNum=parseFloat((top.probability*100).toFixed(1));
 
-  g('conf-overlay').textContent=rawLabel.trim()+' · '+conf+'%';
-  setChip('chip-conf',confNum>75?'g':confNum>50?'a':'r','Conf: '+conf+'%');
+  // ── PHONE DETECTION ANTI-FALSEALARM FIX ──
+  // Head turning left/right makes "using phone" score ~60-75% on a weak model.
+  // We require phone prob >90% AND at least 30% gap above distracted.
+  // If gap is small it means model is unsure — treat as distracted not phone.
+  const PHONE_MIN_CONF   = 90;   // phone must be very confident
+  const PHONE_GAP_MIN    = 0.30; // phone must be 30% higher than distracted
+  const phoneIsRealPhone = phoneProb >= (PHONE_MIN_CONF/100)
+                        && (phoneProb - distractedProb) >= PHONE_GAP_MIN;
+
+  // Resolve the effective label after gap check
+  let effectiveLabel;
+  if(focusedProb >= distractedProb && focusedProb >= phoneProb){
+    effectiveLabel = 'focused';
+  } else if(phoneIsRealPhone){
+    effectiveLabel = 'using phone';
+  } else {
+    // head turn / distracted / ambiguous phone → all treated as distracted
+    effectiveLabel = 'distracted';
+  }
+
+  const displayLabel = effectiveLabel==='using phone' ? 'using phone'
+                     : effectiveLabel==='focused'     ? 'focused'
+                     : 'distracted';
+
+  g('conf-overlay').textContent=rawLabel.trim()+' · '+confNum.toFixed(1)+'%';
+  setChip('chip-conf',confNum>75?'g':confNum>50?'a':'r','Conf: '+confNum.toFixed(1)+'%');
   S.checks++;g('s-checks').textContent=S.checks;
 
-  // EXACT matching helpers — no more includes() which caused "using phone" to match "phone" checks
-  const isFocused   = label==='focused';
-  const isDistracted= label==='distracted';
-  const isPhone     = label==='using phone';  // exact match only
-
+  // ── TEMPORAL SMOOTHING ──
   if(confNum>=CONFIDENCE_THRESHOLD){
-    labelBuffer.push(label);
+    labelBuffer.push(effectiveLabel);
   } else {
     labelBuffer.push('uncertain');
   }
@@ -456,25 +481,20 @@ function handlePrediction(preds){
     return;
   }
 
-  // Display-only while building consensus
   if(!stableLabel){
-    if(isFocused){onFocusedDisplay();}
-    else if(isDistracted){onDistractedDisplay();}
-    else if(isPhone){onPhoneDisplay();}
+    if(effectiveLabel==='focused')      onFocusedDisplay();
+    else if(effectiveLabel==='distracted') onDistractedDisplay();
+    else if(effectiveLabel==='using phone') onPhoneDisplay();
     return;
   }
 
-  // Stable confirmed — trigger alerts using EXACT label match
-  const stableFocused    = stableLabel==='focused';
-  const stableDistracted = stableLabel==='distracted';
-  const stablePhone      = stableLabel==='using phone';
-
-  if(stableFocused){
-    onFocused(conf);
-  } else if(stablePhone){
-    onPhone(conf);
-  } else if(stableDistracted){
-    onDistracted(conf);
+  // ── TRIGGER CONFIRMED ALERTS ──
+  if(stableLabel==='focused'){
+    onFocused(confNum.toFixed(1));
+  } else if(stableLabel==='using phone'){
+    onPhone(confNum.toFixed(1));
+  } else if(stableLabel==='distracted'){
+    onDistracted(confNum.toFixed(1));
   }
 
   S.lastLabel=stableLabel;
@@ -662,17 +682,19 @@ function startExam(){
   const btn=g('start-btn');
   btn.innerHTML='<span class="shine"></span><svg width="9" height="9" viewBox="0 0 10 10" fill="none" style="margin-right:5px"><rect x="1" y="1" width="3" height="8" rx="1" fill="currentColor"/><rect x="6" y="1" width="3" height="8" rx="1" fill="currentColor"/></svg>Monitoring…';
   btn.style.cursor='default';btn.onclick=null;
-  if(phoneCamMode){
-    // Phone cam mode — skip PC webcam, start Firebase listener
-    g('cam-ph').style.display='flex';
-    g('cam-ph').innerHTML='<svg width="44" height="44" viewBox="0 0 46 46" fill="none"><rect x="14" y="2" width="18" height="32" rx="4" stroke="#F2EFE7" stroke-width="1.5" opacity=".4"/><circle cx="23" cy="30" r="2" fill="#F2EFE7" opacity=".4"/></svg>📱 Phone Camera Active<span style="color:rgba(34,197,94,.7)">Detecting via Firebase</span>';
+  if(phoneCamMode && pcConn){
+    // Phone cam mode — skip PC webcam, phone sends predictions via PeerJS
+    const ph=g('cam-ph');
+    ph.innerHTML='<svg width="44" height="44" viewBox="0 0 46 46" fill="none"><rect x="14" y="2" width="18" height="32" rx="4" stroke="#F2EFE7" stroke-width="1.5" opacity=".4"/><circle cx="23" cy="30" r="2" fill="#F2EFE7" opacity=".4"/></svg>📱 Phone Camera Active<span style="color:rgba(34,197,94,.7)">Receiving predictions via PeerJS</span>';
+    ph.style.display='flex';
     g('wcam-container').classList.add('active');
     g('face-rect').classList.add('show');
     g('face-label').classList.add('show');
     g('conf-overlay').classList.add('show');
     setChip('chip-face','g','Phone Camera');
     ['chip-face','chip-gaze','chip-conf'].forEach(id=>g(id).classList.add('lit'));
-    startPhoneListener();
+    // Tell phone to start sending
+    try{ pcConn.send({cmd:'start'}); }catch(e){}
     addLog('Phone camera monitoring started.','ok');
   } else {
     initCam();
@@ -691,7 +713,11 @@ function resetExam(){
   document.removeEventListener('visibilitychange',onTabSwitch);
   if(sirenAudio){sirenAudio.pause();sirenAudio.currentTime=0;}
   g('beep-banner').style.display='none';
-  stopPhoneListener();
+  // Tell phone to stop if in phone cam mode
+  if(phoneCamMode && pcConn){ try{pcConn.send({cmd:'stop'});}catch(e){} }
+  phoneCamMode=false;
+  const getCamBtn=g('btn-get-cam');
+  if(getCamBtn){getCamBtn.textContent='📱 Get Camera';getCamBtn.classList.remove('cam-linked');}
   const v=g('wcam-video');
   if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;}
   v.style.display='none';g('cam-ph').style.display='flex';
@@ -714,160 +740,94 @@ function resetExam(){
   if(quizModeActive) exitQuizMode();
   const qb=g('btn-quiz');if(qb){qb.disabled=true;qb.textContent='📋 Enable Quiz Mode';}
   labelBuffer=[];
-  phoneCamMode=false;
-  const getCamBtn=g('btn-get-cam');
-  if(getCamBtn){getCamBtn.textContent='📱 Get Camera';getCamBtn.classList.remove('cam-linked');}
   addLog('Session reset.','');
 }
 
-/* ══════════════════════════════════════════════════════════════
-   FIREBASE CONFIG — paste your config here
-   Free plan (Spark) is enough. Realtime Database only.
-   Instructions in README or SETUP_GUIDE.md
-══════════════════════════════════════════════════════════════ */
-const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT.firebaseapp.com",
-  databaseURL:       "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-  projectId:         "YOUR_PROJECT",
-  storageBucket:     "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
-};
+/* ══════════════════════════════════════════════
+   PHONE CAMERA BRIDGE — PeerJS (WebRTC)
+   No Firebase, no config, works on GitHub Pages.
+   PC creates a Peer → QR encodes peerId + page URL
+   Phone opens phone-cam.html → connects → sends predictions
+══════════════════════════════════════════════ */
+let pcPeer        = null;   // PeerJS instance on PC
+let pcConn        = null;   // DataConnection from phone
+let phoneCamMode  = false;  // true = phone cam is active
 
-/* ── Firebase init (safe — only initialises once) ── */
-let fbApp = null, fbDb = null;
-function initFirebase(){
-  try{
-    if(!firebase || FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY'){
-      console.warn('Firebase not configured — phone cam bridge disabled.');
-      return false;
-    }
-    if(!fbApp){ fbApp = firebase.initializeApp(FIREBASE_CONFIG); }
-    fbDb = firebase.database();
-    return true;
-  } catch(e){ console.error('Firebase init error:', e); return false; }
-}
-
-/* ── Phone cam state ── */
-let phoneCamMode      = false;   // true when phone cam is active
-let phoneSessionId    = null;    // unique key for this exam session in Firebase
-let phoneUnsubscribe  = null;    // Firebase listener off() function
-let phoneConnTimer    = null;
-
-/* ── Generate QR popup ── */
+/* ── Open QR popup ── */
 function openQRPopup(){
-  const fbOk = initFirebase();
-  if(!fbOk){
-    // Firebase not configured — show manual URL fallback
-    showFirebaseNotice();
-    return;
-  }
+  g('qr-ov').classList.add('show');
+  g('qr-stat').className='qr-stat';
+  g('qr-stat').textContent='⏳ Setting up connection…';
+  g('qr-box').innerHTML='';
 
-  // Create a unique session channel in Firebase
-  phoneSessionId = session.examId + '_' + Date.now();
-  const channelRef = fbDb.ref('phonecam/' + phoneSessionId);
+  // Create PeerJS peer with random ID
+  if(pcPeer){ try{pcPeer.destroy();}catch(e){} }
+  pcPeer = new Peer({ debug:0 });
 
-  // Clear any old data
-  channelRef.remove();
-  // Write session info so phone knows what to connect to
-  channelRef.child('session').set({
-    examId: session.examId,
-    studentId: session.id,
-    status: 'waiting',
-    createdAt: Date.now()
+  pcPeer.on('open', peerId=>{
+    // Build phone-cam URL with peerId embedded
+    const base   = window.location.href.replace(/\/[^\/]*$/, '/');
+    const phoneUrl = base + 'phone-cam.html?pid=' + encodeURIComponent(peerId);
+
+    // Render QR code
+    try{
+      new QRCode(g('qr-box'),{
+        text: phoneUrl,
+        width:164, height:164,
+        colorDark:'#1a0010', colorLight:'#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch(e){
+      g('qr-box').innerHTML='<div style="font-size:.55rem;color:#8B004A;padding:8px;word-break:break-all">Open manually:<br/>'+phoneUrl+'</div>';
+    }
+
+    g('qr-stat').className='qr-stat';
+    g('qr-stat').textContent='⏳ Waiting for phone to scan…';
+
+    // Listen for phone connection
+    pcPeer.on('connection', conn=>{
+      pcConn = conn;
+      conn.on('open',()=>{
+        phoneCamMode = true;
+        g('qr-stat').className='qr-stat ok';
+        g('qr-stat').textContent='✅ Phone connected! Click Start Exam.';
+        const btn=g('btn-get-cam');
+        if(btn){btn.textContent='📱 Phone Cam: READY';btn.classList.add('cam-linked');}
+        addLog('Phone camera connected via PeerJS.','ok');
+      });
+      conn.on('data', data=>{
+        // Receive predictions from phone in real-time
+        if(S.running && data && data.preds){
+          handlePrediction(data.preds);
+        }
+      });
+      conn.on('close',()=>{
+        addLog('Phone disconnected.','warn');
+        phoneCamMode=false;
+      });
+      conn.on('error', e=>{ addLog('Phone cam error: '+e,'warn'); });
+    });
   });
 
-  // Build QR URL — phone-cam.html hosted on same GitHub Pages origin
-  const base = window.location.href.replace(/\/[^\/]*$/, '/');
-  const phoneUrl = base + 'phone-cam.html?sid=' + encodeURIComponent(phoneSessionId)
-    + '&cfg=' + encodeURIComponent(btoa(JSON.stringify(FIREBASE_CONFIG)));
-
-  // Render QR
-  const box = g('qr-box');
-  box.innerHTML = '';
-  try{
-    new QRCode(box, {
-      text: phoneUrl,
-      width: 160, height: 160,
-      colorDark: '#1a0010',
-      colorLight: '#ffffff',
-      correctLevel: QRCode.CorrectLevel.M
-    });
-  } catch(e){
-    box.innerHTML = '<div style="font-size:.55rem;color:#8B004A;padding:8px;word-break:break-all">Configure Firebase first, then share:<br/>' + phoneUrl + '</div>';
-  }
-
-  g('qr-overlay').classList.add('show');
-  g('qr-status').className = 'qr-status waiting';
-  g('qr-status').textContent = '⏳ Waiting for phone to scan…';
-
-  // Listen for phone connection ping
-  listenForPhone(channelRef);
-}
-
-function listenForPhone(channelRef){
-  if(phoneUnsubscribe){ phoneUnsubscribe(); phoneUnsubscribe = null; }
-
-  channelRef.child('ping').on('value', snap => {
-    const val = snap.val();
-    if(!val) return;
-    const age = Date.now() - val;
-    if(age < 6000){
-      // Phone connected!
-      if(!phoneCamMode){
-        phoneCamMode = true;
-        g('qr-status').className = 'qr-status connected';
-        g('qr-status').textContent = '✅ Phone connected! Start exam on PC.';
-        const btn = g('btn-get-cam');
-        btn.textContent = '📱 Phone Cam: READY';
-        btn.classList.add('cam-linked');
-        addLog('Phone camera connected via Firebase.','ok');
-      }
-    }
+  pcPeer.on('error', e=>{
+    g('qr-stat').className='qr-stat err';
+    g('qr-stat').textContent='⚠ PeerJS error: '+e.type;
   });
 }
 
 function closeQRPopup(){
-  g('qr-overlay').classList.remove('show');
+  g('qr-ov').classList.remove('show');
 }
 
-function showFirebaseNotice(){
-  g('qr-overlay').classList.add('show');
-  g('qr-box').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:160px;width:160px;font-size:.6rem;color:#8B004A;text-align:center;padding:10px;line-height:1.6">⚠ Firebase not<br/>configured yet.<br/>See SETUP_GUIDE.md</div>';
-  g('qr-status').className = 'qr-status';
-  g('qr-status').textContent = 'Add Firebase config to index.html';
-}
-
-/* ── Listen for phone predictions via Firebase ── */
-function startPhoneListener(){
-  if(!fbDb || !phoneSessionId) return;
-  const predRef = fbDb.ref('phonecam/' + phoneSessionId + '/pred');
-
-  predRef.on('value', snap => {
-    if(!S.running) return;
-    const data = snap.val();
-    if(!data) return;
-    // Only use fresh predictions (< 3 seconds old)
-    if(Date.now() - data.ts > 3000) return;
-    // Convert Firebase object back to array format
-    const preds = Object.values(data.preds || {});
-    if(preds.length > 0) handlePrediction(preds);
-  });
-
-  phoneUnsubscribe = () => predRef.off();
-}
-
-/* ── Stop phone listener ── */
-function stopPhoneListener(){
-  if(phoneUnsubscribe){ phoneUnsubscribe(); phoneUnsubscribe = null; }
-  if(fbDb && phoneSessionId){
-    fbDb.ref('phonecam/' + phoneSessionId).remove();
-  }
+/* ── Cleanup peer ── */
+function destroyPeer(){
+  if(pcConn){ try{pcConn.close();}catch(e){} pcConn=null; }
+  if(pcPeer){ try{pcPeer.destroy();}catch(e){} pcPeer=null; }
+  phoneCamMode=false;
 }
 
 function logOut(){
-  stopPhoneListener();
+  destroyPeer();
   const active=JSON.parse(localStorage.getItem('proctor_active_students')||'{}');
   if(active[session.id]){active[session.id].status='ended';localStorage.setItem('proctor_active_students',JSON.stringify(active));}
   localStorage.removeItem('proctor_session');window.location.href='login.html';

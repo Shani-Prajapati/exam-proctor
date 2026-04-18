@@ -7,24 +7,30 @@
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 :root{--bg:#0b0b0b;--M:#8B004A;--M50:rgba(139,0,74,.5);--Mglow:rgba(139,0,74,.35);--P:#F2EFE7;--P55:rgba(242,239,231,.55);--green:#22c55e;--red:#ef4444;--amber:#f59e0b;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:var(--bg);color:var(--P);font-family:'DM Sans',sans-serif;overflow:hidden;}
-body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(242,239,231,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(242,239,231,.04) 1px,transparent 1px);background-size:38px 38px;}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:linear-gradient(rgba(242,239,231,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(242,239,231,.04) 1px,transparent 1px);background-size:40px 40px;}
+
+/* ── CAMERA VIEW ── */
 #cam-wrap{position:fixed;inset:0;z-index:1;display:none;flex-direction:column;}
 #cam-wrap.show{display:flex;}
 #video{width:100%;flex:1;object-fit:cover;}
-.hud-top{position:absolute;top:0;left:0;right:0;z-index:10;padding:10px 14px;background:linear-gradient(180deg,rgba(0,0,0,.88),transparent);display:flex;align-items:center;justify-content:space-between;}
+
+/* ── HUD TOP ── */
+.hud-top{position:absolute;top:0;left:0;right:0;z-index:10;padding:10px 14px;background:linear-gradient(180deg,rgba(0,0,0,.9),transparent);display:flex;align-items:center;justify-content:space-between;}
 .hud-title{font-family:'Orbitron',sans-serif;font-size:.7rem;font-weight:700;letter-spacing:.1em;}
 .hud-title span{color:var(--M);}
-.hud-badge{font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.12em;padding:3px 9px;border-radius:20px;border:1px solid rgba(34,197,94,.35);background:rgba(34,197,94,.08);color:var(--green);display:flex;align-items:center;gap:5px;}
+.hud-badge{font-family:'Orbitron',sans-serif;font-size:.5rem;letter-spacing:.12em;padding:3px 10px;border-radius:20px;border:1px solid rgba(34,197,94,.4);background:rgba(34,197,94,.09);color:var(--green);display:flex;align-items:center;gap:5px;}
 .ldot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1.4s infinite;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-#face-rect{position:absolute;top:15%;left:8%;right:8%;bottom:22%;border:2px solid var(--M);border-radius:12px;box-shadow:0 0 24px var(--Mglow);z-index:5;transition:all .3s;}
-#face-rect.danger{border-color:var(--red)!important;box-shadow:0 0 28px rgba(239,68,68,.6)!important;}
+
+/* ── FACE RECT ── */
+#face-rect{position:absolute;top:15%;left:8%;right:8%;bottom:22%;border:2px solid var(--M);border-radius:12px;box-shadow:0 0 24px var(--Mglow);z-index:5;transition:border-color .3s,box-shadow .3s;}
+#face-rect.danger{border-color:var(--red)!important;box-shadow:0 0 30px rgba(239,68,68,.6)!important;animation:pulse .5s infinite alternate;}
+@keyframes pulse{from{opacity:.7}to{opacity:1}}
 .cb{position:absolute;width:22px;height:22px;border-color:var(--P55);border-style:solid;}
 .cb.tl{top:-2px;left:-2px;border-width:2px 0 0 2px;border-radius:4px 0 0 0;}
 .cb.tr{top:-2px;right:-2px;border-width:2px 2px 0 0;border-radius:0 4px 0 0;}
@@ -32,33 +38,42 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .cb.br{bottom:-2px;right:-2px;border-width:0 2px 2px 0;border-radius:0 0 4px 0;}
 .scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--P),transparent);opacity:0;z-index:6;animation:scan 3s linear infinite;}
 @keyframes scan{0%{top:0;opacity:0}4%{opacity:.4}96%{opacity:.4}100%{top:100%;opacity:0}}
-.hud-bottom{position:absolute;bottom:0;left:0;right:0;z-index:10;padding:12px 16px 24px;background:linear-gradient(0deg,rgba(0,0,0,.92),transparent);}
-.pred-label{font-family:'Orbitron',sans-serif;font-size:.9rem;font-weight:700;letter-spacing:.08em;text-align:center;margin-bottom:6px;min-height:24px;transition:color .3s;color:var(--P55);}
+
+/* ── HUD BOTTOM ── */
+.hud-bottom{position:absolute;bottom:0;left:0;right:0;z-index:10;padding:12px 16px 26px;background:linear-gradient(0deg,rgba(0,0,0,.92),transparent);}
+.pred-label{font-family:'Orbitron',sans-serif;font-size:.92rem;font-weight:700;letter-spacing:.08em;text-align:center;margin-bottom:7px;min-height:24px;transition:color .25s;color:var(--P55);}
 .conf-bar-wrap{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;margin-bottom:10px;}
-.conf-bar{height:100%;border-radius:3px;width:0%;transition:width .5s,background .3s;}
-.chips-row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
-.chip{display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;border:1px solid rgba(242,239,231,.07);background:rgba(255,255,255,.02);font-size:.56rem;letter-spacing:.04em;color:rgba(242,239,231,.35);}
+.conf-bar{height:100%;border-radius:3px;width:0%;transition:width .45s,background .3s;}
+.chips{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
+.chip{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:1px solid rgba(242,239,231,.07);background:rgba(255,255,255,.02);font-size:.56rem;letter-spacing:.04em;color:rgba(242,239,231,.32);}
 .chip.lit{color:var(--P);border-color:rgba(242,239,231,.14);}
 .cd{width:5px;height:5px;border-radius:50%;}
 .cd.g{background:var(--green);}.cd.a{background:var(--amber);}.cd.r{background:var(--red);}
-#loading-screen{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;}
-.logo-ring{width:52px;height:52px;border-radius:50%;border:1px solid rgba(242,239,231,.3);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 0 20px var(--Mglow);}
+
+/* ── LOADING SCREEN ── */
+#loading-screen{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center;}
+.logo-ring{width:52px;height:52px;border-radius:50%;border:1px solid rgba(242,239,231,.3);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 0 22px var(--Mglow);}
 .logo-ring::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:1px solid transparent;border-top-color:var(--M);animation:spin 3s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
-.load-title{font-family:'Orbitron',sans-serif;font-size:.78rem;font-weight:700;letter-spacing:.1em;}
-.load-row{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.1em;padding:7px 14px;border-radius:6px;border:1px solid rgba(242,239,231,.08);color:rgba(242,239,231,.28);background:rgba(255,255,255,.02);min-width:230px;text-align:center;transition:all .3s;}
+.load-title{font-family:'Orbitron',sans-serif;font-size:.82rem;font-weight:700;letter-spacing:.1em;}
+.load-row{font-family:'Orbitron',sans-serif;font-size:.52rem;letter-spacing:.1em;padding:8px 14px;border-radius:6px;border:1px solid rgba(242,239,231,.08);color:rgba(242,239,231,.28);background:rgba(255,255,255,.02);min-width:240px;text-align:center;transition:all .3s;}
 .load-row.ok{color:var(--green);border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.05);}
-.load-row.err{color:var(--red);border-color:rgba(239,68,68,.3);}
-#error-screen{position:fixed;inset:0;z-index:200;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;}
+.load-row.err{color:var(--red);border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.04);}
+.load-row.wait{color:var(--amber);border-color:rgba(245,158,11,.3);}
+
+/* ── ERROR SCREEN ── */
+#error-screen{position:fixed;inset:0;z-index:200;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px;text-align:center;}
 #error-screen.show{display:flex;}
-.err-icon{font-size:2.4rem;}
+.err-icon{font-size:2.6rem;}
 .err-title{font-family:'Orbitron',sans-serif;font-size:.8rem;letter-spacing:.1em;color:var(--red);}
-.err-msg{font-size:.68rem;color:rgba(242,239,231,.42);line-height:1.7;max-width:290px;white-space:pre-line;}
-.btn-retry{padding:10px 24px;border:1px solid var(--M50);border-radius:8px;background:linear-gradient(135deg,rgba(139,0,74,.2),rgba(139,0,74,.05));color:var(--P);font-family:'Orbitron',sans-serif;font-size:.6rem;font-weight:700;letter-spacing:.1em;cursor:pointer;margin-top:4px;}
+.err-msg{font-size:.68rem;color:rgba(242,239,231,.4);line-height:1.75;max-width:290px;white-space:pre-line;}
+.btn-retry{padding:11px 26px;border:1px solid var(--M50);border-radius:8px;background:linear-gradient(135deg,rgba(139,0,74,.2),rgba(139,0,74,.05));color:var(--P);font-family:'Orbitron',sans-serif;font-size:.6rem;font-weight:700;letter-spacing:.1em;cursor:pointer;margin-top:4px;transition:all .2s;}
+.btn-retry:hover{box-shadow:0 0 14px var(--Mglow);}
 </style>
 </head>
 <body>
 
+<!-- Loading -->
 <div id="loading-screen">
   <div class="logo-ring">
     <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
@@ -68,11 +83,12 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
     </svg>
   </div>
   <div class="load-title">AI Exam <span style="color:#8B004A">Proctor</span></div>
-  <div class="load-row" id="ls-firebase">⏳ CONNECTING TO FIREBASE…</div>
+  <div class="load-row" id="ls-peer">⏳ CONNECTING TO PC…</div>
   <div class="load-row" id="ls-model">⏳ LOADING AI MODEL…</div>
   <div class="load-row" id="ls-cam">⏳ STARTING CAMERA…</div>
 </div>
 
+<!-- Error -->
 <div id="error-screen">
   <div class="err-icon">⚠️</div>
   <div class="err-title">SETUP ERROR</div>
@@ -80,6 +96,7 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
   <button class="btn-retry" onclick="location.reload()">↺ Retry</button>
 </div>
 
+<!-- Camera View -->
 <div id="cam-wrap">
   <div class="hud-top">
     <div class="hud-title">AI Exam <span>Proctor</span></div>
@@ -93,19 +110,20 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
   <div class="hud-bottom">
     <div class="pred-label" id="pred-label">🔍 SCANNING…</div>
     <div class="conf-bar-wrap"><div class="conf-bar" id="conf-bar"></div></div>
-    <div class="chips-row">
+    <div class="chips">
+      <div class="chip lit" id="chip-peer"><i class="cd g"></i>PC Connected</div>
       <div class="chip lit" id="chip-model"><i class="cd g"></i>Model OK</div>
-      <div class="chip lit" id="chip-cam"><i class="cd g"></i>Camera On</div>
+      <div class="chip lit" id="chip-cam"><i class="cd g"></i>Camera</div>
       <div class="chip" id="chip-pred"><i class="cd a"></i>Conf: —</div>
-      <div class="chip lit" id="chip-fb"><i class="cd g"></i>Firebase ✓</div>
     </div>
   </div>
 </div>
 
 <script>
-const params  = new URLSearchParams(window.location.search);
-const SID     = params.get('sid') || '';
-const CFG_B64 = params.get('cfg') || '';
+/* ── READ PEER ID FROM URL ── */
+const params = new URLSearchParams(window.location.search);
+const PC_PEER_ID = params.get('pid') || '';   // PC's peer ID
+
 const g = id => document.getElementById(id);
 
 function setRow(id, state, msg){
@@ -115,57 +133,83 @@ function setRow(id, state, msg){
 }
 function showErr(msg){
   g('loading-screen').style.display = 'none';
-  const es = g('error-screen');
-  es.classList.add('show');
+  g('error-screen').classList.add('show');
   g('err-msg').textContent = msg;
 }
 
-/* ── FIREBASE ── */
-let fbDb = null, channelRef = null;
+/* ── STEP 1: CONNECT TO PC VIA PEERJS ── */
+let phonePeer = null;
+let pcConn    = null;
+let tmModel   = null;
+let videoEl   = null;
+let predRunning = false;
 
-function initFirebase(){
-  if(!CFG_B64 || !SID){
-    showErr('Missing session info.\nPlease scan the QR code again from the exam page.');
-    return false;
+function connectToPeer(){
+  if(!PC_PEER_ID){
+    showErr('No PC peer ID found.\nPlease scan the QR code from the exam page again.');
+    return;
   }
-  try{
-    const cfg = JSON.parse(atob(decodeURIComponent(CFG_B64)));
-    if(cfg.apiKey === 'YOUR_API_KEY'){
-      showErr('Firebase not configured yet.\nAsk your faculty to add Firebase config to exam.html as described in SETUP_GUIDE.md');
-      return false;
+
+  setRow('ls-peer','wait','⏳ Connecting to PC…');
+  phonePeer = new Peer({ debug:0 });
+
+  phonePeer.on('open', myId=>{
+    const conn = phonePeer.connect(PC_PEER_ID, { reliable: true });
+    pcConn = conn;
+
+    conn.on('open', ()=>{
+      setRow('ls-peer','ok','✅ PC CONNECTED');
+      // Now load model and camera in parallel
+      Promise.all([loadModel(), startCamera()]).then(([mOk, cOk])=>{
+        if(mOk && cOk){
+          showCamView();
+          startSending();
+        }
+      });
+    });
+
+    conn.on('data', data=>{
+      if(data && data.cmd === 'start') predRunning = true;
+      if(data && data.cmd === 'stop')  predRunning = false;
+    });
+
+    conn.on('close', ()=>{
+      g('chip-peer').innerHTML = '<i class="cd r"></i>PC Disconnected';
+    });
+
+    conn.on('error', e=>{
+      showErr('Connection error: ' + e + '\nReopen QR popup on PC and scan again.');
+    });
+  });
+
+  phonePeer.on('error', e=>{
+    setRow('ls-peer','err','✗ PEER ERROR: ' + e.type);
+    if(e.type === 'peer-unavailable'){
+      showErr('Cannot find PC.\nMake sure:\n1. PC exam page is open\n2. You clicked "📱 Get Camera" on PC\n3. Scan the LATEST QR code');
+    } else {
+      showErr('PeerJS error: ' + e.type + '\nTry reloading.');
     }
-    const app = firebase.apps.length ? firebase.app() : firebase.initializeApp(cfg);
-    fbDb = firebase.database(app);
-    channelRef = fbDb.ref('phonecam/' + SID);
-    setRow('ls-firebase','ok','✓ FIREBASE CONNECTED');
-    return true;
-  } catch(e){
-    setRow('ls-firebase','err','✗ FIREBASE: ' + e.message);
-    showErr('Firebase error:\n' + e.message);
-    return false;
-  }
+  });
 }
 
-/* ── MODEL ── */
-let tmModel = null;
-
+/* ── STEP 2: LOAD MODEL ── */
 async function loadModel(){
+  setRow('ls-model','wait','⏳ Loading AI model…');
   try{
     tmModel = await tmImage.load('model/model.json','model/metadata.json');
     const labels = tmModel.getClassLabels ? tmModel.getClassLabels() : [];
-    setRow('ls-model','ok','✓ MODEL: ' + labels.join(' / '));
+    setRow('ls-model','ok','✅ MODEL: ' + labels.join(' / '));
     return true;
   } catch(e){
-    setRow('ls-model','err','✗ MODEL: ' + e.message);
-    showErr('Cannot load AI model.\nMake sure model/ folder exists at the same level as phone-cam.html on your GitHub Pages.');
+    setRow('ls-model','err','✗ MODEL ERROR: ' + e.message);
+    showErr('Cannot load AI model.\nEnsure model/ folder is deployed to GitHub Pages alongside phone-cam.html.');
     return false;
   }
 }
 
-/* ── CAMERA ── */
-let videoEl = null;
-
+/* ── STEP 3: START CAMERA ── */
 async function startCamera(){
+  setRow('ls-cam','wait','⏳ Starting camera…');
   try{
     const stream = await navigator.mediaDevices.getUserMedia({
       video:{ facingMode:'user', width:{ideal:640}, height:{ideal:480} },
@@ -175,67 +219,77 @@ async function startCamera(){
     videoEl.srcObject = stream;
     await new Promise(r => { videoEl.onloadedmetadata = r; });
     await videoEl.play();
-    setRow('ls-cam','ok','✓ CAMERA ACTIVE');
+    setRow('ls-cam','ok','✅ CAMERA ACTIVE');
     return true;
   } catch(e){
     setRow('ls-cam','err','✗ CAMERA: ' + e.message);
-    showErr('Camera denied.\nAllow camera permission in your browser and reload.');
+    showErr('Camera access denied.\nAllow camera in browser settings and reload.');
     return false;
   }
 }
 
-/* ── PREDICTION LOOP ── */
-function startSending(){
+/* ── SHOW CAMERA VIEW ── */
+function showCamView(){
   g('loading-screen').style.display = 'none';
   g('cam-wrap').classList.add('show');
+  predRunning = true; // start detecting immediately
+}
 
-  // Ping every 2s so PC knows phone is alive
-  setInterval(()=>{
-    if(channelRef) channelRef.child('ping').set(Date.now());
-  }, 2000);
-
-  // Predict every 600ms — push to Firebase
+/* ── PREDICTION + SEND LOOP ── */
+function startSending(){
   setInterval(async ()=>{
     if(!tmModel || !videoEl || videoEl.readyState < 2 || !videoEl.videoWidth) return;
+    if(!pcConn || !pcConn.open) return;
+
     try{
       const preds = await tmModel.predict(videoEl);
-      const top   = preds.reduce((a,b) => a.probability > b.probability ? a : b);
-      const label = (top.className||'').trim().toLowerCase();
-      const conf  = parseFloat((top.probability*100).toFixed(1));
+
+      // ── SAME GAP CHECK AS index.html ──
+      let focusedProb=0, distractedProb=0, phoneProb=0;
+      preds.forEach(p=>{
+        const lbl=(p.className||'').trim().toLowerCase();
+        if(lbl==='focused')          focusedProb=p.probability;
+        else if(lbl==='distracted')  distractedProb=p.probability;
+        else if(lbl==='using phone') phoneProb=p.probability;
+      });
+
+      const phoneIsReal = phoneProb >= 0.90 && (phoneProb - distractedProb) >= 0.30;
+      let effectiveLabel;
+      if(focusedProb >= distractedProb && focusedProb >= phoneProb){
+        effectiveLabel = 'focused';
+      } else if(phoneIsReal){
+        effectiveLabel = 'using phone';
+      } else {
+        effectiveLabel = 'distracted';
+      }
+
+      const top = preds.reduce((a,b)=>a.probability>b.probability?a:b);
+      const conf = parseFloat((top.probability*100).toFixed(1));
 
       // Update phone UI
-      updateUI(label, conf);
+      updateUI(effectiveLabel, conf);
 
-      // Push predictions to Firebase as indexed object
-      // (Firebase doesn't store JS arrays natively)
-      const predsObj = {};
-      preds.forEach((p,i) => { predsObj[i] = { className: p.className, probability: p.probability }; });
-      channelRef.child('pred').set({ ts: Date.now(), preds: predsObj });
+      // Send predictions to PC via PeerJS
+      pcConn.send({ preds: preds.map(p=>({className:p.className, probability:p.probability})) });
 
-    } catch(e){ console.warn(e); }
+    } catch(e){ console.warn('Pred error:', e); }
   }, 600);
 }
 
+/* ── PHONE UI ── */
 function updateUI(label, conf){
   const pr   = g('pred-label');
   const cb   = g('conf-bar');
   const fr   = g('face-rect');
   const chip = g('chip-pred');
 
-  // EXACT match — same logic as exam.html fix
-  const isFocused    = label === 'focused';
-  const isDistracted = label === 'distracted';
-  const isPhone      = label === 'using phone';
-
   if(conf >= 75){
-    if(isFocused){
+    if(label==='focused'){
       pr.textContent='✓ FOCUSED'; pr.style.color='#22c55e'; fr.classList.remove('danger');
-    } else if(isPhone){
+    } else if(label==='using phone'){
       pr.textContent='📱 PHONE DETECTED'; pr.style.color='#ef4444'; fr.classList.add('danger');
-    } else if(isDistracted){
-      pr.textContent='⚠ DISTRACTED'; pr.style.color='#f59e0b'; fr.classList.add('danger');
     } else {
-      pr.textContent=label.toUpperCase(); pr.style.color='rgba(242,239,231,.5)';
+      pr.textContent='⚠ DISTRACTED'; pr.style.color='#f59e0b'; fr.classList.add('danger');
     }
   } else {
     pr.textContent='🔍 SCANNING…'; pr.style.color='rgba(242,239,231,.35)'; fr.classList.remove('danger');
@@ -248,15 +302,10 @@ function updateUI(label, conf){
 }
 
 /* ── BOOT ── */
-async function boot(){
-  if(!initFirebase()) return;
-  if(!await loadModel()) return;
-  if(!await startCamera()) return;
-  startSending();
-}
+connectToPeer();
 
-boot();
-document.addEventListener('touchstart',()=>{},{passive:true});
+/* Keep screen awake on mobile */
+document.addEventListener('touchstart', ()=>{}, { passive: true });
 </script>
 </body>
 </html>
