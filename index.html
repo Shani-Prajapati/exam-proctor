@@ -253,7 +253,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
       <li>Click Calibrate — look at your screen normally</li>
       <li>Then click Start Exam</li>
     </ul>
-    <div class="qr-note">⚡ Phone sends frames → PC model detects via your trained model</div>
+    <div class="qr-note">⚡ Phone sends frames → PC model detects via your trained model<br/>📐 <b>Tip:</b> Place phone 30–40 cm to the side, angled so your full face is visible</div>
     <button class="btn-qr-close" onclick="closeQRPopup()">✓ Done — Close</button>
   </div>
 </div>
@@ -262,7 +262,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 <div class="cal-ov" id="cal-ov">
   <div class="cal-modal">
     <div class="cal-title">🎯 ANGLE CALIBRATION</div>
-    <div class="cal-sub">Look at your screen <b style="color:#F2EFE7">exactly as you will during the exam</b>.<br/>Hold still for 3 seconds while we record your normal position.</div>
+    <div class="cal-sub">Place your phone <b style="color:#F2EFE7">to the side of your screen</b>, angled so your face is clearly visible.<br/>Then look at your screen normally and hold still for 3 seconds.</div>
     <div class="cal-preview">
       <canvas id="cal-canvas" width="160" height="120"></canvas>
     </div>
@@ -371,7 +371,8 @@ let sirenAudio=null;
    Require 3 consecutive same-label frames before acting.
    This prevents toolbar/taskbar flickers triggering false alerts.
 */
-const SMOOTHING_FRAMES = 3;      // consecutive frames needed
+const SMOOTHING_FRAMES = 3;      // consecutive frames needed (webcam)
+const PHONE_SMOOTHING_FRAMES = 4; // extra smoothing for side-angle phone
 const CONFIDENCE_THRESHOLD = 75; // raised to 75% — must be very sure
 let labelBuffer = [];             // rolling buffer of recent labels
 
@@ -970,48 +971,55 @@ function handleCalibratedPrediction(preds){
     const deltaPhone      = rawPhone      - basePhone;
 
     /* Decision rules — calibration-relative:
-       • If focused stayed near baseline (delta > -0.20) → still focused
-       • If focused dropped a lot (< -0.20) AND phone rose a lot (> +0.20) → phone detected
-       • If focused dropped a lot AND distracted rose → distracted/cheating
-       • Phone class threshold: raw phone must be at least basePhone + 0.20
+       The phone is placed at the side, so the model may already report
+       lower "focused" scores at baseline (e.g. 55%) compared to a
+       front-facing webcam (90%+). We use DELTA from baseline, not
+       absolute thresholds, so the detection is angle-agnostic.
+       
+       Tightened thresholds to reduce false positives from side angle:
+       • focusedDropped: focused fell >25% below baseline (was 20%)
+       • distractedRose: distracted rose >20% above baseline (was 15%)
+       • phoneRose:      phone rose >25% above baseline (was 20%)
+       • phoneAbsolute:  raw phone > 60% AND is dominant class (was 55%)
     */
-    const focusedDropped    = deltaFocused    < -0.20;  // focused fell by >20%
-    const distractedRose    = deltaDistracted >  0.15;  // distracted rose by >15%
-    const phoneRose         = deltaPhone      >  0.20;  // phone rose by >20%
-    const phoneAbsolute     = rawPhone        >  0.55;  // also check absolute level
+    const focusedDropped    = deltaFocused    < -0.25;
+    const distractedRose    = deltaDistracted >  0.20;
+    const phoneRose         = deltaPhone      >  0.25;
+    const phoneAbsolute     = rawPhone        >  0.60 && rawPhone > rawDistracted;
 
     if(!focusedDropped){
-      // Focused is still close to baseline → student is looking at screen
       effectiveLabel = 'focused';
     } else if((phoneRose || phoneAbsolute) && rawPhone > rawDistracted){
-      // Phone class clearly dominant over distracted
       effectiveLabel = 'using phone';
-    } else if(distractedRose || focusedDropped){
+    } else if(distractedRose){
       effectiveLabel = 'distracted';
     } else {
+      // focused dropped but nothing else rose clearly — natural side-angle sway, treat as focused
       effectiveLabel = 'focused';
     }
 
   } else {
-    // No calibration — fallback to simple exact label matching
+    // No calibration fallback — side-angle phones never hit 90% on phone class
+    // so use simpler majority rule with lower phone threshold
     if(rawFocused >= rawDistracted && rawFocused >= rawPhone){
       effectiveLabel='focused';
-    } else if(rawPhone>=0.90 && (rawPhone-rawDistracted)>=0.30){
+    } else if(rawPhone >= rawDistracted && rawPhone > 0.55){
       effectiveLabel='using phone';
     } else {
       effectiveLabel='distracted';
     }
   }
 
-  // ── TEMPORAL SMOOTHING (same as PC) ──
+  // ── TEMPORAL SMOOTHING (4 frames for phone cam — extra stability) ──
+  const FRAMES = PHONE_SMOOTHING_FRAMES;
   if(confNum >= CONFIDENCE_THRESHOLD){
     labelBuffer.push(effectiveLabel);
   } else {
     labelBuffer.push('uncertain');
   }
-  if(labelBuffer.length > SMOOTHING_FRAMES) labelBuffer.shift();
+  if(labelBuffer.length > FRAMES) labelBuffer.shift();
 
-  const allSame    = labelBuffer.length===SMOOTHING_FRAMES && labelBuffer.every(l=>l===labelBuffer[0]);
+  const allSame    = labelBuffer.length===FRAMES && labelBuffer.every(l=>l===labelBuffer[0]);
   const stableLabel= allSame ? labelBuffer[0] : null;
 
   if(confNum < CONFIDENCE_THRESHOLD){

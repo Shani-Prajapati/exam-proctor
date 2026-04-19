@@ -273,9 +273,17 @@ function startCanvasLoop(){
     }
     displayCtx.restore();
 
-    /* Capture canvas — 224×224, always upright */
+    /* Capture canvas — 224×224, always upright + horizontally mirrored.
+       IMPORTANT: The Teachable Machine model was trained on a desktop webcam
+       whose preview is mirrored (scaleX(-1)). To match training data exactly,
+       we must also mirror the capture frame before sending it to the PC model.
+       Without this, a side-mounted phone sends an un-mirrored side-angle image
+       the model has never seen → wrong predictions. */
     capCtx.save();
     capCtx.clearRect(0,0,224,224);
+    // Apply horizontal mirror first (to match training orientation)
+    capCtx.translate(224,0);
+    capCtx.scale(-1,1);
     if(a===90||a===-270){
       capCtx.translate(112,112); capCtx.rotate(-Math.PI/2);
       capCtx.drawImage(videoEl,-112,-112,224,224);
