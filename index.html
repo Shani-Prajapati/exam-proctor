@@ -188,10 +188,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .btn-get-cam{width:100%;padding:9px;margin-top:6px;border:1px solid rgba(139,0,74,.5);border-radius:var(--rs);background:linear-gradient(135deg,rgba(139,0,74,.18),rgba(139,0,74,.06));color:#d4607a;font-family:'Orbitron',sans-serif;font-size:.54rem;font-weight:700;letter-spacing:.1em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all var(--ease);}
 .btn-get-cam:hover{border-color:rgba(139,0,74,.8);box-shadow:0 0 14px rgba(139,0,74,.22);transform:translateY(-1px);}
 .btn-get-cam.cam-linked{border-color:rgba(34,197,94,.45);color:#22c55e;background:rgba(34,197,94,.07);}
+
 /* ── QR overlay ── */
 .qr-ov{display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.86);align-items:center;justify-content:center;}
 .qr-ov.show{display:flex;}
-.qr-modal{background:#0f0c10;border:1px solid rgba(139,0,74,.5);border-radius:18px;padding:26px 22px 20px;max-width:340px;width:92%;text-align:center;box-shadow:0 0 60px rgba(139,0,74,.22);animation:qrpop .3s ease;}
+.qr-modal{background:#0f0c10;border:1px solid rgba(139,0,74,.5);border-radius:18px;padding:26px 22px 20px;max-width:360px;width:92%;text-align:center;box-shadow:0 0 60px rgba(139,0,74,.22);animation:qrpop .3s ease;}
 @keyframes qrpop{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 .qr-ttl{font-family:'Orbitron',sans-serif;font-size:.72rem;font-weight:700;letter-spacing:.16em;color:#F2EFE7;margin-bottom:3px;}
 .qr-sub{font-size:.62rem;color:rgba(242,239,231,.38);margin-bottom:16px;line-height:1.6;}
@@ -204,8 +205,22 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .qr-note{font-size:.55rem;color:rgba(242,239,231,.2);margin-bottom:12px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,.015);}
 .btn-qr-close{width:100%;padding:9px;border:1px solid rgba(242,239,231,.1);border-radius:8px;background:transparent;color:rgba(242,239,231,.4);font-family:'DM Sans',sans-serif;font-size:.7rem;cursor:pointer;transition:all .2s;}
 .btn-qr-close:hover{border-color:rgba(139,0,74,.4);color:#F2EFE7;}
-/* Hidden phone-frame video element for model prediction */
-#phone-frame-img{display:none;position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;}
+
+/* ── CALIBRATION OVERLAY ── */
+.cal-ov{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.9);align-items:center;justify-content:center;}
+.cal-ov.show{display:flex;}
+.cal-modal{background:#0f0c10;border:1px solid rgba(139,0,74,.5);border-radius:18px;padding:28px 24px;max-width:360px;width:92%;text-align:center;box-shadow:0 0 60px rgba(139,0,74,.3);}
+.cal-title{font-family:'Orbitron',sans-serif;font-size:.76rem;font-weight:700;letter-spacing:.16em;color:#F2EFE7;margin-bottom:6px;}
+.cal-sub{font-size:.65rem;color:rgba(242,239,231,.42);margin-bottom:20px;line-height:1.7;}
+.cal-preview{width:160px;height:120px;margin:0 auto 16px;border-radius:10px;overflow:hidden;border:2px solid rgba(139,0,74,.5);background:#000;position:relative;}
+.cal-preview canvas{width:100%;height:100%;object-fit:cover;}
+.cal-bar-wrap{height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;margin-bottom:8px;}
+.cal-bar{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--M),var(--maroon-lt,#e0006e));width:0%;transition:width .15s;}
+.cal-count{font-family:'Orbitron',sans-serif;font-size:.58rem;letter-spacing:.12em;color:rgba(242,239,231,.4);margin-bottom:16px;}
+.btn-cal-start{width:100%;padding:12px;border:1px solid rgba(139,0,74,.6);border-radius:8px;background:linear-gradient(135deg,rgba(139,0,74,.25),rgba(139,0,74,.08));color:#F2EFE7;font-family:'Orbitron',sans-serif;font-size:.65rem;font-weight:700;letter-spacing:.14em;cursor:pointer;transition:all .25s;}
+.btn-cal-start:hover{box-shadow:0 0 20px rgba(139,0,74,.4);}
+.btn-cal-start:disabled{opacity:.35;cursor:not-allowed;}
+.cal-done{font-size:.65rem;color:#22c55e;margin-top:10px;display:none;}
 
 @media(max-width:900px){.dash{grid-template-columns:1fr;height:auto}.center-panel{order:-1}}
 </style>
@@ -228,22 +243,36 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 <!-- QR popup -->
 <div class="qr-ov" id="qr-ov">
   <div class="qr-modal">
-    <div class="qr-ttl">📱 USE PHONE AS CAMERA</div>
-    <div class="qr-sub">Phone streams video → PC model detects.<br/>Same accuracy as local webcam.</div>
+    <div class="qr-ttl">📱 PHONE AS CAMERA</div>
+    <div class="qr-sub">Scan QR with phone. After connecting,<br/>calibrate angle then start exam.</div>
     <div class="qr-box" id="qr-box"></div>
     <div class="qr-stat" id="qr-stat">⏳ Waiting for phone…</div>
     <ul class="qr-steps">
-      <li>Scan QR with your phone</li>
-      <li>Allow camera permission on phone</li>
-      <li>Place phone facing you on the desk</li>
-      <li>Click Start Exam on PC</li>
+      <li>Scan QR — allow camera on phone</li>
+      <li>Wait for "Connected" status above</li>
+      <li>Click Calibrate — look at your screen normally</li>
+      <li>Then click Start Exam</li>
     </ul>
-    <div class="qr-note">⚡ PC model detects — no angle/training mismatch</div>
+    <div class="qr-note">⚡ Phone sends frames → PC model detects via your trained model</div>
     <button class="btn-qr-close" onclick="closeQRPopup()">✓ Done — Close</button>
   </div>
 </div>
-<!-- Hidden image — receives JPEG frames from phone, fed to PC model -->
-<img id="phone-frame-img" alt=""/>
+
+<!-- Calibration overlay -->
+<div class="cal-ov" id="cal-ov">
+  <div class="cal-modal">
+    <div class="cal-title">🎯 ANGLE CALIBRATION</div>
+    <div class="cal-sub">Look at your screen <b style="color:#F2EFE7">exactly as you will during the exam</b>.<br/>Hold still for 3 seconds while we record your normal position.</div>
+    <div class="cal-preview">
+      <canvas id="cal-canvas" width="160" height="120"></canvas>
+    </div>
+    <div class="cal-bar-wrap"><div class="cal-bar" id="cal-bar"></div></div>
+    <div class="cal-count" id="cal-count">Press the button below to begin</div>
+    <button class="btn-cal-start" id="btn-cal-start" onclick="startCalibration()">▶ Calibrate Normal Position</button>
+    <div class="cal-done" id="cal-done">✅ Calibration complete! Close this and click Start Exam.</div>
+    <button class="btn-qr-close" style="margin-top:10px;" onclick="closeCalibration()">Close</button>
+  </div>
+</div>
 
 <div class="pdf-overlay" id="pdf-overlay"><div class="pdf-spinner"></div><div class="pdf-msg">GENERATING REPORT…</div></div>
 <header class="hdr">
@@ -657,14 +686,11 @@ function startExam(){
   btn.innerHTML='<span class="shine"></span><svg width="9" height="9" viewBox="0 0 10 10" fill="none" style="margin-right:5px"><rect x="1" y="1" width="3" height="8" rx="1" fill="currentColor"/><rect x="6" y="1" width="3" height="8" rx="1" fill="currentColor"/></svg>Monitoring…';
   btn.style.cursor='default';btn.onclick=null;
   if(phoneCamMode && pcPeer){
-    // Phone cam mode — PC receives JPEG frames from phone, runs PC model on them
     const ph=g('cam-ph');
-    ph.innerHTML='<svg width="44" height="44" viewBox="0 0 46 46" fill="none"><rect x="14" y="2" width="18" height="32" rx="4" stroke="#F2EFE7" stroke-width="1.5" opacity=".4"/><circle cx="23" cy="30" r="2" fill="#F2EFE7" opacity=".4"/></svg>📱 Phone Camera Active<span style="color:rgba(34,197,94,.7)">PC model detecting via phone feed</span>';
+    ph.innerHTML='<svg width="44" height="44" viewBox="0 0 46 46" fill="none"><rect x="14" y="2" width="18" height="32" rx="4" stroke="#F2EFE7" stroke-width="1.5" opacity=".4"/><circle cx="23" cy="30" r="2" fill="#F2EFE7" opacity=".4"/></svg>📱 Phone Camera Active<span style="color:rgba(34,197,94,.7)">PC model detecting</span>';
     ph.style.display='flex';
     g('wcam-container').classList.add('active');
-    g('face-rect').classList.add('show');
-    g('face-label').classList.add('show');
-    g('conf-overlay').classList.add('show');
+    g('face-rect').classList.add('show');g('face-label').classList.add('show');g('conf-overlay').classList.add('show');
     setChip('chip-face','g','Phone Camera');
     ['chip-face','chip-gaze','chip-conf'].forEach(id=>g(id).classList.add('lit'));
     labelBuffer=[];
@@ -687,8 +713,7 @@ function resetExam(){
   document.removeEventListener('visibilitychange',onTabSwitch);
   if(sirenAudio){sirenAudio.pause();sirenAudio.currentTime=0;}
   g('beep-banner').style.display='none';
-  // Stop phone cam mode
-  if(phoneCamMode){ try{ if(pcConn) pcConn.send({cmd:'stop'}); }catch(e){} }
+  if(phoneCamMode){try{if(pcConn)pcConn.send({cmd:'stop'});}catch(e){}}
   phoneCamMode=false;
   labelBuffer=[];
   const getCamBtn=g('btn-get-cam');
@@ -718,129 +743,327 @@ function resetExam(){
   addLog('Session reset.','');
 }
 
-/* ════════════════════════════════════════════════════════
-   PHONE CAMERA BRIDGE — PeerJS (WebRTC)
+/* ════════════════════════════════════════════════════════════════
+   PHONE CAMERA BRIDGE + ANGLE CALIBRATION
+   
    Architecture:
-     • Phone streams JPEG frames → PC via PeerJS DataChannel
-     • PC draws frames into a hidden <canvas>
-     • PC's OWN model predicts on that canvas
-     • handlePrediction() called exactly like local webcam
-     • Zero angle/training mismatch — PC model always decides
-════════════════════════════════════════════════════════ */
-let pcPeer       = null;   // PeerJS Peer on PC
-let pcConn       = null;   // DataConnection from phone
-let phoneCamMode = false;  // true when phone cam is active
+   • Phone streams JPEG frames to PC via PeerJS
+   • PC draws frames on a 224×224 canvas → runs PC's own trained model
+   • Calibration: student sits normally, system captures the model's
+     "baseline" output probabilities. Future predictions are compared
+     RELATIVE to this baseline, not absolute.
+   
+   This solves the angle problem: if the model says "distracted" 60%
+   even when looking at screen (due to phone angle), calibration
+   records that 60% as the "focused baseline". Future readings are
+   only flagged if they deviate significantly from baseline.
+════════════════════════════════════════════════════════════════ */
 
-// Hidden canvas PC model reads frames from
-let phoneCanvas  = null;
-let phoneCtx     = null;
-let phoneFrameLoop = null;
+let pcPeer        = null;
+let pcConn        = null;
+let phoneCamMode  = false;
+let phoneCanvas   = null;
+let phoneCtx      = null;
+let phoneFrameLoop= null;
 
+/* ── Calibration state ── */
+let calBaseline   = null;  // { focused, distracted, phone } avg probs at normal position
+let calSamples    = [];    // collected prediction samples during calibration
+let calInterval   = null;
+let calCanvas2d   = null;  // preview canvas in calibration modal
+
+/* ════════════════════
+   QR POPUP
+════════════════════ */
 function openQRPopup(){
-  // Create/recreate the hidden prediction canvas
   if(!phoneCanvas){
     phoneCanvas = document.createElement('canvas');
-    phoneCanvas.width  = 224;
-    phoneCanvas.height = 224;
+    phoneCanvas.width=224; phoneCanvas.height=224;
     phoneCtx = phoneCanvas.getContext('2d');
   }
-
   g('qr-ov').classList.add('show');
-  g('qr-stat').className = 'qr-stat';
-  g('qr-stat').textContent = '⏳ Setting up connection…';
-  g('qr-box').innerHTML = '';
-
-  // Destroy old peer cleanly
-  if(pcPeer){ try{pcPeer.destroy();}catch(e){} pcPeer=null; }
-
-  pcPeer = new Peer({ debug:0 });
-
+  g('qr-stat').className='qr-stat';
+  g('qr-stat').textContent='⏳ Setting up connection…';
+  g('qr-box').innerHTML='';
+  if(pcPeer){try{pcPeer.destroy();}catch(e){} pcPeer=null;}
+  pcPeer = new Peer({debug:0});
   pcPeer.on('open', peerId=>{
-    const base     = window.location.href.replace(/\/[^\/]*$/, '/');
-    const phoneUrl = base + 'phone-cam.html?pid=' + encodeURIComponent(peerId);
-
+    const base=window.location.href.replace(/\/[^\/]*$/,'/');
+    const url=base+'phone-cam.html?pid='+encodeURIComponent(peerId);
     try{
-      new QRCode(g('qr-box'),{
-        text: phoneUrl,
-        width:164, height:164,
-        colorDark:'#1a0010', colorLight:'#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
-      });
-    } catch(e){
-      g('qr-box').innerHTML='<div style="font-size:.55rem;color:#8B004A;padding:8px;word-break:break-all">Share URL:<br/>'+phoneUrl+'</div>';
+      new QRCode(g('qr-box'),{text:url,width:164,height:164,colorDark:'#1a0010',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
+    }catch(e){
+      g('qr-box').innerHTML='<div style="font-size:.55rem;color:#8B004A;padding:8px;word-break:break-all">'+url+'</div>';
     }
-
-    g('qr-stat').textContent = '⏳ Waiting for phone to scan…';
-
+    g('qr-stat').textContent='⏳ Waiting for phone to scan…';
     pcPeer.on('connection', conn=>{
-      pcConn = conn;
+      pcConn=conn;
       conn.on('open',()=>{
-        phoneCamMode = true;
-        g('qr-stat').className = 'qr-stat ok';
-        g('qr-stat').textContent = '✅ Phone connected! Click Start Exam.';
-        const btn = g('btn-get-cam');
-        if(btn){ btn.textContent='📱 Phone Cam: READY'; btn.classList.add('cam-linked'); }
-        addLog('Phone connected — PC model will process frames.','ok');
+        phoneCamMode=true;
+        g('qr-stat').className='qr-stat ok';
+        g('qr-stat').textContent='✅ Phone connected! Calibrate angle, then Start Exam.';
+        const btn=g('btn-get-cam');
+        if(btn){btn.textContent='📱 Calibrate & Start';btn.classList.add('cam-linked');}
+        addLog('Phone connected.','ok');
+        // Auto-open calibration after 1s
+        setTimeout(()=>{ g('qr-ov').classList.remove('show'); openCalibration(); }, 1200);
       });
-
-      // Receive JPEG blobs from phone → draw onto phoneCanvas → PC model predicts
       conn.on('data', data=>{
-        if(!S.running || !data) return;
-        if(data.type === 'frame' && data.blob){
-          drawPhoneFrame(data.blob);
-        }
+        if(!data) return;
+        if(data.type==='frame' && data.blob) receiveFrame(data.blob);
       });
-
       conn.on('close',()=>{ addLog('Phone disconnected.','warn'); });
-      conn.on('error', e=>{ addLog('Phone cam error.','warn'); });
+      conn.on('error', ()=>{ addLog('Phone cam error.','warn'); });
     });
   });
-
   pcPeer.on('error', e=>{
-    g('qr-stat').className = 'qr-stat err';
-    g('qr-stat').textContent = '⚠ ' + e.type;
+    g('qr-stat').className='qr-stat err';
+    g('qr-stat').textContent='⚠ '+e.type;
   });
 }
+function closeQRPopup(){ g('qr-ov').classList.remove('show'); }
 
-function closeQRPopup(){
-  g('qr-ov').classList.remove('show');
-}
-
-/* Draw incoming JPEG blob from phone onto phoneCanvas (224×224) */
-function drawPhoneFrame(blob){
-  if(!phoneCanvas || !phoneCtx) return;
-  const url = URL.createObjectURL(blob);
-  const img = new Image();
-  img.onload = ()=>{
-    phoneCtx.clearRect(0, 0, 224, 224);
-    phoneCtx.drawImage(img, 0, 0, 224, 224);
+/* ════════════════════
+   RECEIVE FRAMES FROM PHONE
+   Draw onto phoneCanvas (224×224) for model prediction
+════════════════════ */
+function receiveFrame(blob){
+  if(!phoneCanvas||!phoneCtx) return;
+  const url=URL.createObjectURL(blob);
+  const img=new Image();
+  img.onload=()=>{
+    phoneCtx.clearRect(0,0,224,224);
+    phoneCtx.drawImage(img,0,0,224,224);
     URL.revokeObjectURL(url);
+    // Also draw to calibration preview if cal overlay is open
+    if(calCanvas2d && g('cal-ov').classList.contains('show')){
+      calCanvas2d.clearRect(0,0,160,120);
+      calCanvas2d.drawImage(img,0,0,160,120);
+    }
   };
-  img.src = url;
+  img.src=url;
 }
 
-/* Run PC model on the phone canvas — called every 500ms when exam is running */
+/* ════════════════════
+   CALIBRATION
+   Collect 15 prediction samples over 3 seconds
+   while student looks at screen normally.
+   Average them → that IS the "focused" baseline.
+   Store per-class average probability.
+════════════════════ */
+function openCalibration(){
+  if(!phoneCamMode){
+    // PC webcam mode — skip calibration (model trained on same angle)
+    return;
+  }
+  const cc=g('cal-canvas');
+  if(cc) calCanvas2d=cc.getContext('2d');
+  g('cal-ov').classList.add('show');
+  g('cal-done').style.display='none';
+  g('btn-cal-start').disabled=false;
+  g('cal-count').textContent='Press the button below to begin';
+  g('cal-bar').style.width='0%';
+  addLog('Calibration opened.','ok');
+}
+function closeCalibration(){ g('cal-ov').classList.remove('show'); }
+
+function startCalibration(){
+  if(!S.tmModel){ addLog('Model not loaded yet.','warn'); return; }
+  if(!phoneCanvas){ addLog('Phone not connected.','warn'); return; }
+  calSamples=[];
+  g('btn-cal-start').disabled=true;
+  g('cal-done').style.display='none';
+
+  const TOTAL=15; // 15 samples over ~3 seconds
+  let count=0;
+
+  g('cal-count').textContent='Look at your screen normally… ('+TOTAL+' samples)';
+
+  calInterval=setInterval(async()=>{
+    if(!S.tmModel||!phoneCanvas) return;
+    try{
+      const preds=await S.tmModel.predict(phoneCanvas);
+      // Store raw probability array
+      const sample={};
+      preds.forEach(p=>{ sample[(p.className||'').trim().toLowerCase()]=p.probability; });
+      calSamples.push(sample);
+      count++;
+      const pct=Math.round((count/TOTAL)*100);
+      g('cal-bar').style.width=pct+'%';
+      g('cal-count').textContent='Calibrating… '+count+'/'+TOTAL+' samples';
+
+      if(count>=TOTAL){
+        clearInterval(calInterval);
+        finishCalibration();
+      }
+    }catch(e){}
+  }, 200); // every 200ms = 15 samples in 3 seconds
+}
+
+function finishCalibration(){
+  // Average all collected samples per class
+  const avg={};
+  if(calSamples.length===0){ addLog('Calibration failed — no samples.','warn'); return; }
+  Object.keys(calSamples[0]).forEach(cls=>{
+    avg[cls]=calSamples.reduce((sum,s)=>sum+(s[cls]||0),0)/calSamples.length;
+  });
+  calBaseline=avg;
+
+  const f=(calBaseline['focused']||0)*100;
+  const d=(calBaseline['distracted']||0)*100;
+  const p=(calBaseline['using phone']||0)*100;
+
+  g('cal-bar').style.width='100%';
+  g('cal-bar').style.background='linear-gradient(90deg,#22c55e,#16a34a)';
+  g('cal-count').textContent=
+    'Baseline — Focused: '+f.toFixed(0)+'% · Distracted: '+d.toFixed(0)+'% · Phone: '+p.toFixed(0)+'%';
+  g('cal-done').style.display='block';
+  g('btn-cal-start').disabled=false;
+  g('btn-cal-start').textContent='↺ Re-calibrate';
+  addLog('Calibration done. Focused baseline: '+f.toFixed(0)+'%','ok');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CALIBRATED PREDICTION HANDLER
+   Called instead of the raw handlePrediction when in phone cam mode.
+   
+   The calibration tells us: "When student looks at screen normally,
+   the model gives these probabilities."
+   
+   We compute a DELTA — how much each class changes from baseline.
+   If focused drops significantly AND distracted/phone rises → alert.
+   
+   This makes detection relative to the physical setup, not absolute.
+════════════════════════════════════════════════════════════════ */
+function handleCalibratedPrediction(preds){
+  if(!S.running||!preds||preds.length===0) return;
+
+  // Get raw probabilities
+  let rawFocused=0, rawDistracted=0, rawPhone=0;
+  let rawLabel='', rawConf=0;
+  preds.forEach(p=>{
+    const lbl=(p.className||'').trim().toLowerCase();
+    if(lbl==='focused')          rawFocused    =p.probability;
+    else if(lbl==='distracted')  rawDistracted =p.probability;
+    else if(lbl==='using phone') rawPhone      =p.probability;
+    if(p.probability>rawConf){ rawConf=p.probability; rawLabel=lbl; }
+  });
+
+  const confNum=parseFloat((rawConf*100).toFixed(1));
+
+  // Update confidence display
+  g('conf-overlay').textContent=(rawLabel||'?')+' · '+confNum.toFixed(1)+'%';
+  setChip('chip-conf',confNum>75?'g':confNum>50?'a':'r','Conf: '+confNum.toFixed(1)+'%');
+  S.checks++; g('s-checks').textContent=S.checks;
+
+  // ── CALIBRATED DELTA LOGIC ──
+  let effectiveLabel;
+
+  if(calBaseline){
+    const baseFocused    = calBaseline['focused']    || 0;
+    const baseDistracted = calBaseline['distracted'] || 0;
+    const basePhone      = calBaseline['using phone']|| 0;
+
+    // Delta: how much each class changed from baseline
+    const deltaFocused    = rawFocused    - baseFocused;
+    const deltaDistracted = rawDistracted - baseDistracted;
+    const deltaPhone      = rawPhone      - basePhone;
+
+    /* Decision rules — calibration-relative:
+       • If focused stayed near baseline (delta > -0.20) → still focused
+       • If focused dropped a lot (< -0.20) AND phone rose a lot (> +0.20) → phone detected
+       • If focused dropped a lot AND distracted rose → distracted/cheating
+       • Phone class threshold: raw phone must be at least basePhone + 0.20
+    */
+    const focusedDropped    = deltaFocused    < -0.20;  // focused fell by >20%
+    const distractedRose    = deltaDistracted >  0.15;  // distracted rose by >15%
+    const phoneRose         = deltaPhone      >  0.20;  // phone rose by >20%
+    const phoneAbsolute     = rawPhone        >  0.55;  // also check absolute level
+
+    if(!focusedDropped){
+      // Focused is still close to baseline → student is looking at screen
+      effectiveLabel = 'focused';
+    } else if((phoneRose || phoneAbsolute) && rawPhone > rawDistracted){
+      // Phone class clearly dominant over distracted
+      effectiveLabel = 'using phone';
+    } else if(distractedRose || focusedDropped){
+      effectiveLabel = 'distracted';
+    } else {
+      effectiveLabel = 'focused';
+    }
+
+  } else {
+    // No calibration — fallback to simple exact label matching
+    if(rawFocused >= rawDistracted && rawFocused >= rawPhone){
+      effectiveLabel='focused';
+    } else if(rawPhone>=0.90 && (rawPhone-rawDistracted)>=0.30){
+      effectiveLabel='using phone';
+    } else {
+      effectiveLabel='distracted';
+    }
+  }
+
+  // ── TEMPORAL SMOOTHING (same as PC) ──
+  if(confNum >= CONFIDENCE_THRESHOLD){
+    labelBuffer.push(effectiveLabel);
+  } else {
+    labelBuffer.push('uncertain');
+  }
+  if(labelBuffer.length > SMOOTHING_FRAMES) labelBuffer.shift();
+
+  const allSame    = labelBuffer.length===SMOOTHING_FRAMES && labelBuffer.every(l=>l===labelBuffer[0]);
+  const stableLabel= allSame ? labelBuffer[0] : null;
+
+  if(confNum < CONFIDENCE_THRESHOLD){
+    g('face-label').textContent='? SCANNING…';
+    g('face-label').style.color='rgba(242,239,231,.35)';
+    return;
+  }
+
+  // Display-only while building consensus
+  if(!stableLabel){
+    if(effectiveLabel==='focused')       onFocusedDisplay();
+    else if(effectiveLabel==='distracted') onDistractedDisplay();
+    else if(effectiveLabel==='using phone') onPhoneDisplay();
+    return;
+  }
+
+  // Stable — trigger alerts
+  if(stableLabel==='focused'){
+    onFocused(confNum.toFixed(1));
+  } else if(stableLabel==='using phone'){
+    onPhone(confNum.toFixed(1));
+  } else if(stableLabel==='distracted'){
+    onDistracted(confNum.toFixed(1));
+  }
+
+  S.lastLabel=stableLabel;
+  updateIntegrity();
+}
+
+/* ════════════════════
+   PHONE FRAME PREDICTION LOOP
+   Runs on PC — reads phoneCanvas every 500ms
+   Uses calibrated handler when phone cam is active
+════════════════════ */
 function startPhoneFrameLoop(){
   if(phoneFrameLoop) clearInterval(phoneFrameLoop);
-  labelBuffer = [];
-
-  phoneFrameLoop = setInterval(async()=>{
-    if(!S.running){ clearInterval(phoneFrameLoop); return; }
-    if(!S.tmModel || !phoneCanvas) return;
-    // Only predict if canvas has real content (width/height exist)
+  labelBuffer=[];
+  phoneFrameLoop=setInterval(async()=>{
+    if(!S.running){clearInterval(phoneFrameLoop);return;}
+    if(!S.tmModel||!phoneCanvas) return;
     try{
-      const preds = await S.tmModel.predict(phoneCanvas);
-      handlePrediction(preds);
-    } catch(e){}
-  }, 500);
-
-  // Store interval so resetExam can clear it
+      const preds=await S.tmModel.predict(phoneCanvas);
+      // Use calibrated handler (it handles no-calibration fallback too)
+      handleCalibratedPrediction(preds);
+    }catch(e){}
+  },500);
   S.ticks.push(phoneFrameLoop);
 }
 
 function logOut(){
-  try{ if(pcConn) pcConn.close(); }catch(e){}
-  try{ if(pcPeer) pcPeer.destroy(); }catch(e){}
+  try{if(pcConn)pcConn.close();}catch(e){}
+  try{if(pcPeer)pcPeer.destroy();}catch(e){}
   const active=JSON.parse(localStorage.getItem('proctor_active_students')||'{}');
   if(active[session.id]){active[session.id].status='ended';localStorage.setItem('proctor_active_students',JSON.stringify(active));}
   localStorage.removeItem('proctor_session');window.location.href='login.html';
