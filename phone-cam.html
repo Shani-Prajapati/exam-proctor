@@ -160,7 +160,7 @@ function connectToPeer(){
   setRow('ls-peer','wait','⏳ Connecting to PC…');
   phonePeer = new Peer({debug:0});
   phonePeer.on('open', ()=>{
-    const conn = phonePeer.connect(PC_PEER_ID, {reliable:false, serialization:'binary'});
+    const conn = phonePeer.connect(PC_PEER_ID, {reliable:false, serialization:'raw'});
     pcConn = conn;
     conn.on('open', ()=>{
       setRow('ls-peer','ok','✅ PC CONNECTED');
@@ -313,7 +313,10 @@ function startStream(){
     capCanvas.toBlob(blob=>{
       if(!blob||!pcConn||!pcConn.open) return;
       try{
-        pcConn.send({type:'frame', blob});
+        // Convert blob to ArrayBuffer and send as raw binary
+        blob.arrayBuffer().then(buf=>{
+          if(pcConn&&pcConn.open) pcConn.send(buf);
+        });
         totalFrames++;
         g('fps-lbl').textContent='Frames sent: '+totalFrames;
         g('chip-fps').innerHTML='<i class="cd g"></i>'+TARGET_FPS+' FPS';
