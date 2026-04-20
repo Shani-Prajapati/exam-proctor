@@ -811,7 +811,12 @@ function openQRPopup(){
       });
       conn.on('data', data=>{
         if(!data) return;
-        if(data.type==='frame' && data.blob) receiveFrame(data.blob);
+        if(data.type==='frame' && data.blob){
+          receiveFrame(data.blob);
+        } else if(data instanceof ArrayBuffer){
+          // fallback: raw binary frame
+          receiveFrame(data);
+        }
       });
       conn.on('close',()=>{ addLog('Phone disconnected.','warn'); });
       conn.on('error', ()=>{ addLog('Phone cam error.','warn'); });
@@ -828,8 +833,21 @@ function closeQRPopup(){ g('qr-ov').classList.remove('show'); }
    RECEIVE FRAMES FROM PHONE
    Draw onto phoneCanvas (224×224) for model prediction
 ════════════════════ */
-function receiveFrame(blob){
+function receiveFrame(data){
   if(!phoneCanvas||!phoneCtx) return;
+  // PeerJS binary serialization sends ArrayBuffer, not Blob
+  // Must convert ArrayBuffer → Blob before createObjectURL
+  let blob;
+  if(data instanceof Blob){
+    blob = data;
+  } else if(data instanceof ArrayBuffer){
+    blob = new Blob([data], {type:'image/jpeg'});
+  } else if(data && data.buffer instanceof ArrayBuffer){
+    // Uint8Array or similar typed array
+    blob = new Blob([data.buffer], {type:'image/jpeg'});
+  } else {
+    return; // unknown type, skip
+  }
   const url=URL.createObjectURL(blob);
   const img=new Image();
   img.onload=()=>{
@@ -842,6 +860,7 @@ function receiveFrame(blob){
       calCanvas2d.drawImage(img,0,0,160,120);
     }
   };
+  img.onerror=()=>{ URL.revokeObjectURL(url); };
   img.src=url;
 }
 
