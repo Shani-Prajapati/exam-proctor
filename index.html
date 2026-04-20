@@ -811,13 +811,10 @@ function openQRPopup(){
       });
       conn.on('data', data=>{
         if(!data) return;
-        // Now receiving raw ArrayBuffer directly
-        if(data instanceof ArrayBuffer){
-          receiveFrame(data);
-        } else if(data.type==='frame' && data.blob){
-          // fallback for old format
+        if(data.type==='frame' && data.blob){
           receiveFrame(data.blob);
-        } else {
+        } else if(data instanceof ArrayBuffer){
+          // fallback: raw binary frame
           receiveFrame(data);
         }
       });
@@ -838,37 +835,33 @@ function closeQRPopup(){ g('qr-ov').classList.remove('show'); }
 ════════════════════ */
 function receiveFrame(data){
   if(!phoneCanvas||!phoneCtx) return;
-  try{
-    // PeerJS can deliver data in many formats — handle all cases
-    let blob;
-    if(data instanceof Blob){
-      blob = data;
-    } else if(data instanceof ArrayBuffer){
-      blob = new Blob([data],{type:'image/jpeg'});
-    } else if(data && data.buffer instanceof ArrayBuffer){
-      blob = new Blob([data.buffer],{type:'image/jpeg'});
-    } else if(data && data instanceof Uint8Array){
-      blob = new Blob([data],{type:'image/jpeg'});
-    } else {
-      // Last resort — try wrapping whatever we got
-      try{ blob = new Blob([data],{type:'image/jpeg'}); }catch(e){ return; }
+  // PeerJS binary serialization sends ArrayBuffer, not Blob
+  // Must convert ArrayBuffer → Blob before createObjectURL
+  let blob;
+  if(data instanceof Blob){
+    blob = data;
+  } else if(data instanceof ArrayBuffer){
+    blob = new Blob([data], {type:'image/jpeg'});
+  } else if(data && data.buffer instanceof ArrayBuffer){
+    // Uint8Array or similar typed array
+    blob = new Blob([data.buffer], {type:'image/jpeg'});
+  } else {
+    return; // unknown type, skip
+  }
+  const url=URL.createObjectURL(blob);
+  const img=new Image();
+  img.onload=()=>{
+    phoneCtx.clearRect(0,0,224,224);
+    phoneCtx.drawImage(img,0,0,224,224);
+    URL.revokeObjectURL(url);
+    // Also draw to calibration preview if cal overlay is open
+    if(calCanvas2d && g('cal-ov').classList.contains('show')){
+      calCanvas2d.clearRect(0,0,160,120);
+      calCanvas2d.drawImage(img,0,0,160,120);
     }
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload=()=>{
-      try{
-        phoneCtx.clearRect(0,0,224,224);
-        phoneCtx.drawImage(img,0,0,224,224);
-        if(calCanvas2d && g('cal-ov').classList.contains('show')){
-          calCanvas2d.clearRect(0,0,160,120);
-          calCanvas2d.drawImage(img,0,0,160,120);
-        }
-      }catch(e){}
-      URL.revokeObjectURL(url);
-    };
-    img.onerror=()=>{ URL.revokeObjectURL(url); };
-    img.src=url;
-  }catch(e){}
+  };
+  img.onerror=()=>{ URL.revokeObjectURL(url); };
+  img.src=url;
 }
 
 /* ════════════════════
@@ -951,38 +944,92 @@ function finishCalibration(){
 }
 
 /* ════════════════════════════════════════════════════════════════
-   PHONE PREDICTION HANDLER
-   Uses raw model output directly — no delta/calibration math.
-   Calibration baseline of 4% focused means the delta system
-   inverts correct predictions. Raw model is more accurate.
+   CALIBRATED PREDICTION HANDLER
+   Called instead of the raw handlePrediction when in phone cam mode.
+   
+   The calibration tells us: "When student looks at screen normally,
+   the model gives these probabilities."
+   
+   We compute a DELTA — how much each class changes from baseline.
+   If focused drops significantly AND distracted/phone rises → alert.
+   
+   This makes detection relative to the physical setup, not absolute.
 ════════════════════════════════════════════════════════════════ */
 function handleCalibratedPrediction(preds){
   if(!S.running||!preds||preds.length===0) return;
 
-  // Get raw probabilities for all 3 classes
+  // Get raw probabilities
   let rawFocused=0, rawDistracted=0, rawPhone=0;
   let rawLabel='', rawConf=0;
   preds.forEach(p=>{
     const lbl=(p.className||'').trim().toLowerCase();
-    if(lbl==='focused')          rawFocused    = p.probability;
-    else if(lbl==='distracted')  rawDistracted = p.probability;
-    else if(lbl==='using phone') rawPhone      = p.probability;
-    if(p.probability > rawConf){ rawConf = p.probability; rawLabel = lbl; }
+    if(lbl==='focused')          rawFocused    =p.probability;
+    else if(lbl==='distracted')  rawDistracted =p.probability;
+    else if(lbl==='using phone') rawPhone      =p.probability;
+    if(p.probability>rawConf){ rawConf=p.probability; rawLabel=lbl; }
   });
 
-  const confNum = parseFloat((rawConf*100).toFixed(1));
+  const confNum=parseFloat((rawConf*100).toFixed(1));
 
-  // Update display
-  g('conf-overlay').textContent = (rawLabel||'?')+' · '+confNum.toFixed(1)+'%';
-  setChip('chip-conf', confNum>75?'g':confNum>50?'a':'r', 'Conf: '+confNum.toFixed(1)+'%');
-  S.checks++; g('s-checks').textContent = S.checks;
+  // Update confidence display
+  g('conf-overlay').textContent=(rawLabel||'?')+' · '+confNum.toFixed(1)+'%';
+  setChip('chip-conf',confNum>75?'g':confNum>50?'a':'r','Conf: '+confNum.toFixed(1)+'%');
+  S.checks++; g('s-checks').textContent=S.checks;
 
-  // ── DIRECT RAW LABEL — no delta/calibration math ──
-  // Raw model output is trusted directly since it was trained
-  // at this exact angle and position
-  const effectiveLabel = rawLabel; // use whatever model says
+  // ── CALIBRATED DELTA LOGIC ──
+  let effectiveLabel;
 
-  // ── TEMPORAL SMOOTHING (4 frames for phone cam stability) ──
+  if(calBaseline){
+    const baseFocused    = calBaseline['focused']    || 0;
+    const baseDistracted = calBaseline['distracted'] || 0;
+    const basePhone      = calBaseline['using phone']|| 0;
+
+    // Delta: how much each class changed from baseline
+    const deltaFocused    = rawFocused    - baseFocused;
+    const deltaDistracted = rawDistracted - baseDistracted;
+    const deltaPhone      = rawPhone      - basePhone;
+
+    /* Decision rules — calibration-relative:
+       The phone is placed at the side, so the model may already report
+       lower "focused" scores at baseline (e.g. 55%) compared to a
+       front-facing webcam (90%+). We use DELTA from baseline, not
+       absolute thresholds, so the detection is angle-agnostic.
+       
+       Tightened thresholds to reduce false positives from side angle:
+       • focusedDropped: focused fell >25% below baseline (was 20%)
+       • distractedRose: distracted rose >20% above baseline (was 15%)
+       • phoneRose:      phone rose >25% above baseline (was 20%)
+       • phoneAbsolute:  raw phone > 60% AND is dominant class (was 55%)
+    */
+    const focusedDropped    = deltaFocused    < -0.25;
+    const distractedRose    = deltaDistracted >  0.20;
+    const phoneRose         = deltaPhone      >  0.25;
+    const phoneAbsolute     = rawPhone        >  0.60 && rawPhone > rawDistracted;
+
+    if(!focusedDropped){
+      effectiveLabel = 'focused';
+    } else if((phoneRose || phoneAbsolute) && rawPhone > rawDistracted){
+      effectiveLabel = 'using phone';
+    } else if(distractedRose){
+      effectiveLabel = 'distracted';
+    } else {
+      // focused dropped but nothing else rose clearly — natural side-angle sway, treat as focused
+      effectiveLabel = 'focused';
+    }
+
+  } else {
+    // No calibration fallback — side-angle phones never hit 90% on phone class
+    // so use simpler majority rule with lower phone threshold
+    if(rawFocused >= rawDistracted && rawFocused >= rawPhone){
+      effectiveLabel='focused';
+    } else if(rawPhone >= rawDistracted && rawPhone > 0.55){
+      effectiveLabel='using phone';
+    } else {
+      effectiveLabel='distracted';
+    }
+  }
+
+  // ── TEMPORAL SMOOTHING (4 frames for phone cam — extra stability) ──
   const FRAMES = PHONE_SMOOTHING_FRAMES;
   if(confNum >= CONFIDENCE_THRESHOLD){
     labelBuffer.push(effectiveLabel);
@@ -991,8 +1038,8 @@ function handleCalibratedPrediction(preds){
   }
   if(labelBuffer.length > FRAMES) labelBuffer.shift();
 
-  const allSame     = labelBuffer.length===FRAMES && labelBuffer.every(l=>l===labelBuffer[0]);
-  const stableLabel = allSame ? labelBuffer[0] : null;
+  const allSame    = labelBuffer.length===FRAMES && labelBuffer.every(l=>l===labelBuffer[0]);
+  const stableLabel= allSame ? labelBuffer[0] : null;
 
   if(confNum < CONFIDENCE_THRESHOLD){
     g('face-label').textContent='? SCANNING…';
@@ -1000,9 +1047,9 @@ function handleCalibratedPrediction(preds){
     return;
   }
 
-  // Display while building consensus
+  // Display-only while building consensus
   if(!stableLabel){
-    if(effectiveLabel==='focused')        onFocusedDisplay();
+    if(effectiveLabel==='focused')       onFocusedDisplay();
     else if(effectiveLabel==='distracted') onDistractedDisplay();
     else if(effectiveLabel==='using phone') onPhoneDisplay();
     return;
@@ -1017,11 +1064,9 @@ function handleCalibratedPrediction(preds){
     onDistracted(confNum.toFixed(1));
   }
 
-  S.lastLabel = stableLabel;
+  S.lastLabel=stableLabel;
   updateIntegrity();
 }
-
-
 
 /* ════════════════════
    PHONE FRAME PREDICTION LOOP
