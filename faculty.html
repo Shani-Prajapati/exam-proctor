@@ -135,6 +135,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;fon
 
 @media(max-width:900px){.stats-row{grid-template-columns:1fr 1fr}.students-grid{grid-template-columns:1fr}.page{padding:16px}.hdr{padding:0 16px}}
 </style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 </head>
 <body>
 
@@ -189,7 +193,7 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;fon
 </div>
 
 <script>
-const session=JSON.parse(localStorage.getItem('proctor_session')||'null');
+const session=JSON.parse(sessionStorage.getItem('proctor_session')||'null');
 if(!session||session.role!=='faculty'){window.location.href='login.html';}
 const g=id=>document.getElementById(id);
 let refreshCountdown=10, prevViolationCounts={}, currentRoomCode='';
@@ -200,16 +204,14 @@ window.addEventListener('load',()=>{
   tickClock();setInterval(tickClock,1000);
 
   // Generate or restore room code for this faculty session
-  const storedCode=localStorage.getItem('proctor_faculty_room_'+session.email);
-  if(storedCode){currentRoomCode=storedCode;}
-  else{currentRoomCode=generateCode();}
+  const storedCode = sessionStorage.getItem('proctor_faculty_room_'+session.email);
+  if(storedCode){ currentRoomCode=storedCode; }
+  else{ currentRoomCode=generateCode(); }
   registerRoom(currentRoomCode);
   g('room-code-display').textContent=currentRoomCode;
-  // Show code popup on login
   document.getElementById('code-popup').classList.remove('hidden');
 
   refresh();
-  // Refresh every 10 seconds exactly
   setInterval(()=>{
     refreshCountdown--;
     g('refresh-timer').textContent='Next refresh in '+refreshCountdown+'s';
@@ -217,61 +219,51 @@ window.addEventListener('load',()=>{
   },1000);
 });
 
-window.addEventListener('storage',e=>{if(e.key==='proctor_update'||e.key==='proctor_active_students'){refresh();}});
-
 function tickClock(){g('hclock').textContent=new Date().toLocaleTimeString('en-US',{hour12:false});}
-
 function generateCode(){return Math.random().toString(36).substring(2,8).toUpperCase();}
 
-function registerRoom(code){
-  const rooms=JSON.parse(localStorage.getItem('proctor_rooms')||'{}');
-  rooms[code]={facultyName:session.name,facultyEmail:session.email,createdAt:new Date().toISOString()};
-  localStorage.setItem('proctor_rooms',JSON.stringify(rooms));
-  localStorage.setItem('proctor_faculty_room_'+session.email,code);
+async function registerRoom(code){
+  sessionStorage.setItem('proctor_faculty_room_'+session.email, code);
+  try{ await createRoom(code, session.email, 'Exam Session'); }catch(e){}
 }
 
-function generateNewCode(){
-  // Remove old room
-  const rooms=JSON.parse(localStorage.getItem('proctor_rooms')||'{}');
-  delete rooms[currentRoomCode];
+async function generateNewCode(){
   currentRoomCode=generateCode();
-  rooms[currentRoomCode]={facultyName:session.name,facultyEmail:session.email,createdAt:new Date().toISOString()};
-  localStorage.setItem('proctor_rooms',JSON.stringify(rooms));
-  localStorage.setItem('proctor_faculty_room_'+session.email,currentRoomCode);
+  sessionStorage.setItem('proctor_faculty_room_'+session.email, currentRoomCode);
+  await registerRoom(currentRoomCode);
   g('room-code-display').textContent=currentRoomCode;
 }
 
 function showCodePopup(){document.getElementById('code-popup').classList.remove('hidden');}
 function closeCodePopup(){document.getElementById('code-popup').classList.add('hidden');}
 
+// Real-time Firebase listener — updates instantly when student gets flagged
+let unsubscribe = null;
 function refresh(){
-  const raw=localStorage.getItem('proctor_active_students')||'{}';
-  let students;try{students=JSON.parse(raw);}catch(e){students={};}
+  if(unsubscribe) unsubscribe(); // stop old listener
+  unsubscribe = listenToRoom(currentRoomCode, students => {
+    const active          = students.filter(s=>s.status!=='ended');
+    const totalViolations = students.reduce((a,s)=>a+(s.violations||0),0);
+    const flagged         = students.filter(s=>(s.violations||0)>0).length;
+    const critical        = students.filter(s=>(s.violations||0)>=5).length;
 
-  // Show students who joined with this faculty's room code
-  // Use case-insensitive trimmed comparison for reliability
-  const list=Object.values(students).filter(s=>{
-    if(!s.roomCode||!currentRoomCode) return false;
-    return s.roomCode.toString().trim().toUpperCase() === currentRoomCode.toString().trim().toUpperCase();
+    g('stat-active').textContent     = active.length;
+    g('stat-violations').textContent = totalViolations;
+    g('stat-flagged').textContent    = flagged;
+    g('stat-critical').textContent   = critical;
+    g('count-badge').textContent     = students.length+' STUDENT'+(students.length!==1?'S':'');
+
+    students.forEach(s=>{
+      const prev=prevViolationCounts[s.student_id];
+      if(prev!==undefined&&(s.violations||0)>prev){
+        showToast('🚨 '+s.student_id+': '+(s.last_violation||'Violation'));
+      }
+      prevViolationCounts[s.student_id]=s.violations||0;
+    });
+
+    renderGrid(students);
+    g('refresh-timer').textContent='🔴 Live';
   });
-  const active=list.filter(s=>s.status!=='ended');
-  const totalViolations=list.reduce((a,s)=>a+(s.violations||0),0);
-  const flagged=list.filter(s=>(s.violations||0)>0).length;
-  const critical=list.filter(s=>(s.violations||0)>=5).length;
-
-  g('stat-active').textContent=active.length;
-  g('stat-violations').textContent=totalViolations;
-  g('stat-flagged').textContent=flagged;
-  g('stat-critical').textContent=critical;
-  g('count-badge').textContent=list.length+' STUDENT'+(list.length!==1?'S':'');
-
-  list.forEach(s=>{
-    const prev=prevViolationCounts[s.id];
-    if(prev!==undefined&&(s.violations||0)>prev){showToast('🚨 '+s.id+': '+(s.lastViolation||'Violation'));}
-    prevViolationCounts[s.id]=s.violations||0;
-  });
-
-  renderGrid(list);
 }
 
 function renderGrid(students){
@@ -286,24 +278,19 @@ function renderGrid(students){
 
 function buildCard(s){
   const v=s.violations||0,status=s.status||'active',integrity=s.integrity??Math.max(0,100-v*7);
-  const initials=(s.id||'??').substring(0,3).toUpperCase();
+  const initials=(s.student_id||'??').substring(0,3).toUpperCase();
   const cardClass=v===0?'clean':v>=5?'critical':'warning';
   const statusText=status==='ended'?'ENDED':v===0?'FOCUSED':v>=5?'CRITICAL':'WARNING';
   const intColor=integrity<55?'danger':integrity<78?'warn':'safe';
   const intBg=integrity<55?'#dc2626':integrity<78?'#d97706':'#16a34a';
-  const vlog=(s.violationLog||[]).slice(-5).reverse();
-  const vlogHTML=vlog.length===0
-    ?'<div style="font-size:.6rem;color:#aaa;padding:3px 6px;">No violations yet.</div>'
-    :vlog.map(v=>{const ip=v.msg.toLowerCase().includes('phone'),it=v.msg.toLowerCase().includes('tab');return '<div class="vlog-item"><span class="vlog-dot '+(ip?'phone':it?'tab':'dist')+'"></span><span class="vlog-time">'+v.time+'</span><span class="vlog-msg">'+escHtml(v.msg)+'</span></div>';}).join('');
-  const loginTime = s.loginTime ? new Date(s.loginTime).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—';
-  const email = s.email || '—';
-  return '<div class="student-card '+cardClass+(status==='ended'?' ended':'')+'" id="sc-'+escHtml(s.id)+'">'
+  const loginTime = s.login_time ? new Date(s.login_time).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}) : '—';
+  return '<div class="student-card '+cardClass+(status==='ended'?' ended':'')+'" id="sc-'+escHtml(s.student_id)+'">'
     +'<div class="card-hdr">'
       +'<div class="card-hdr-l">'
         +'<div class="student-avatar '+cardClass+'">'+initials+'</div>'
         +'<div>'
-          +'<div class="student-name">'+escHtml(s.name||'Unknown')+'</div>'
-          +'<div class="student-sub">'+escHtml(s.subject||'—')+' · '+escHtml(s.examId||'—')+'</div>'
+          +'<div class="student-name">'+escHtml(s.student_name||'Unknown')+'</div>'
+          +'<div class="student-sub">'+escHtml(s.subject||'—')+' · '+escHtml(s.exam_id||'—')+'</div>'
         +'</div>'
       +'</div>'
       +'<div style="display:flex;align-items:center;gap:7px;">'
@@ -312,27 +299,22 @@ function buildCard(s){
       +'</div>'
     +'</div>'
     +'<div class="card-body">'
-      // ── FULL STUDENT DETAILS ──
       +'<div class="details-grid">'
-        +'<div class="detail-item"><span class="info-k">Full Name</span><span class="info-v detail-val">'+escHtml(s.name||'—')+'</span></div>'
-        +'<div class="detail-item"><span class="info-k">College ID</span><span class="info-v detail-val highlight">'+escHtml(s.id||'—')+'</span></div>'
-        +'<div class="detail-item"><span class="info-k">Email</span><span class="info-v detail-val small-val">'+escHtml(email)+'</span></div>'
+        +'<div class="detail-item"><span class="info-k">Full Name</span><span class="info-v detail-val">'+escHtml(s.student_name||'—')+'</span></div>'
+        +'<div class="detail-item"><span class="info-k">College ID</span><span class="info-v detail-val highlight">'+escHtml(s.student_id||'—')+'</span></div>'
+        +'<div class="detail-item"><span class="info-k">Email</span><span class="info-v detail-val small-val">'+escHtml(s.student_email||'—')+'</span></div>'
         +'<div class="detail-item"><span class="info-k">Subject</span><span class="info-v detail-val">'+escHtml(s.subject||'—')+'</span></div>'
-        +'<div class="detail-item"><span class="info-k">Exam ID</span><span class="info-v detail-val">'+escHtml(s.examId||'—')+'</span></div>'
+        +'<div class="detail-item"><span class="info-k">Exam ID</span><span class="info-v detail-val">'+escHtml(s.exam_id||'—')+'</span></div>'
         +'<div class="detail-item"><span class="info-k">Joined At</span><span class="info-v detail-val">'+loginTime+'</span></div>'
       +'</div>'
       +'<div class="divider-line"></div>'
-      // ── STATS ROW ──
       +'<div class="mini-stats">'
         +'<div class="mini-stat"><div class="mini-stat-n '+(v>=5?'danger':v>0?'warn':'safe')+'">'+v+'</div><div class="mini-stat-l">Alerts</div></div>'
-        +'<div class="mini-stat"><div class="mini-stat-n">'+escHtml(String(s.tabSwitches||0))+'</div><div class="mini-stat-l">Tab Sw.</div></div>'
-        +'<div class="mini-stat"><div class="mini-stat-n">'+escHtml(String(s.gazeAway||0))+'s</div><div class="mini-stat-l">Away</div></div>'
-        +'<div class="mini-stat"><div class="mini-stat-n '+intColor+'">'+integrity+'%</div><div class="mini-stat-l">Integrity</div></div>'
+        +'<div class="mini-stat"><div class="mini-stat-n">'+integrity+'%</div><div class="mini-stat-l">Integrity</div></div>'
+        +'<div class="mini-stat"><div class="mini-stat-n">'+loginTime+'</div><div class="mini-stat-l">Joined</div></div>'
+        +'<div class="mini-stat"><div class="mini-stat-n '+(status==='critical'?'danger':status==='warning'?'warn':'safe')+'">'+statusText+'</div><div class="mini-stat-l">Status</div></div>'
       +'</div>'
-      // ── INTEGRITY BAR ──
       +'<div class="int-track" style="margin:6px 0 10px;"><div class="int-fill" style="width:'+integrity+'%;background:'+intBg+';"></div></div>'
-      // ── VIOLATION LOG ──
-      +'<div class="vlog"><div class="vlog-title">Violation Log</div><div class="vlog-list">'+vlogHTML+'</div></div>'
     +'</div>'
   +'</div>';
 }
@@ -343,12 +325,8 @@ let toastTimer;
 function showToast(msg){const t=g('toast');g('toast-msg').textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),5000);}
 
 function logOut(){
-  // Clean up room on logout
-  localStorage.removeItem('proctor_faculty_room_'+session.email);
-  const rooms=JSON.parse(localStorage.getItem('proctor_rooms')||'{}');
-  delete rooms[currentRoomCode];
-  localStorage.setItem('proctor_rooms',JSON.stringify(rooms));
-  localStorage.removeItem('proctor_session');
+  sessionStorage.removeItem('proctor_session');
+  sessionStorage.removeItem('proctor_faculty_room_'+session.email);
   window.location.href='login.html';
 }
 </script>

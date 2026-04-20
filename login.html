@@ -61,6 +61,10 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;back
 .sdot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green);animation:blink 1.5s ease-in-out infinite;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 </style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 </head>
 <body>
 <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
@@ -128,73 +132,78 @@ function facTab(t){['login','register'].forEach(x=>{document.getElementById('fac
 function showErr(id,msg){const e=document.getElementById(id);e.textContent=msg;e.classList.add('show');}
 function clearErr(id){document.getElementById(id).classList.remove('show');}
 
-function studentLogin(){
+async function studentLogin(){
   clearErr('s-err1');
-  const name=document.getElementById('s-name').value.trim();
-  const id=document.getElementById('s-id').value.trim();
-  const subject=document.getElementById('s-subject').value.trim();
-  const code=document.getElementById('s-code').value.trim().toUpperCase();
-  const email=document.getElementById('s-email').value.trim();
-  const pass=document.getElementById('s-password').value;
+  const name    = document.getElementById('s-name').value.trim();
+  const id      = document.getElementById('s-id').value.trim();
+  const subject = document.getElementById('s-subject').value.trim();
+  const code    = document.getElementById('s-code').value.trim().toUpperCase();
+  const email   = document.getElementById('s-email').value.trim();
+  const pass    = document.getElementById('s-password').value;
   if(!name||!id||!subject||!code||!email||!pass){showErr('s-err1','Please fill in all fields.');return;}
   if(id.length<3){showErr('s-err1','College ID too short.');return;}
   if(code.length!==6){showErr('s-err1','Room code must be 6 characters.');return;}
   if(!email.includes('@')){showErr('s-err1','Invalid email address.');return;}
   if(pass.length<6){showErr('s-err1','Password must be at least 6 characters.');return;}
-  const rooms=JSON.parse(localStorage.getItem('proctor_rooms')||'{}');
-  if(!rooms[code]){showErr('s-err1','Invalid room code. Ask your faculty.');return;}
-  // Verify or register student password
-  const accounts=JSON.parse(localStorage.getItem('proctor_student_accounts')||'{}');
-  if(accounts[email]){
-    if(accounts[email].password!==pass){showErr('s-err1','Incorrect password for this email.');return;}
-  } else {
-    // First time — register this email+password
-    accounts[email]={email,password:pass,registeredAt:new Date().toISOString()};
-    localStorage.setItem('proctor_student_accounts',JSON.stringify(accounts));
+  const btn=document.querySelector('#form-student .btn-submit');
+  btn.disabled=true; btn.textContent='Joining…';
+  try{
+    const session = await studentLogin_fb(name,id,subject,code,email,pass);
+    sessionStorage.setItem('proctor_session', JSON.stringify(session));
+    window.location.href='index.html';
+  }catch(e){
+    showErr('s-err1', e.message||'Login failed.');
+    btn.disabled=false; btn.textContent='JOIN EXAM SESSION →';
   }
-  const session={role:'student',name,id,subject,email,roomCode:code,loginTime:new Date().toISOString(),examId:'EX-'+Math.floor(Math.random()*90000+10000)};
-  localStorage.setItem('proctor_session',JSON.stringify(session));
-  const active=JSON.parse(localStorage.getItem('proctor_active_students')||'{}');
-  active[id]={name,id,subject,email,examId:session.examId,roomCode:code,loginTime:session.loginTime,violations:0,violationLog:[],status:'active',integrity:100};
-  localStorage.setItem('proctor_active_students',JSON.stringify(active));
-  localStorage.setItem('proctor_update',Date.now().toString());
-  window.location.href='exam.html';
 }
 
-function facultyLogin(){
+async function studentLogin_fb(name,id,subject,code,email,pass){
+  return await studentLogin(name,id,subject,code,email,pass);
+}
+
+async function facultyLogin(){
   clearErr('f-err');
-  const email=document.getElementById('f-email').value.trim().toLowerCase();
-  const pass=document.getElementById('f-pass').value;
+  const email = document.getElementById('f-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('f-pass').value;
   if(!email||!pass){showErr('f-err','Please enter email and password.');return;}
-  const accounts=JSON.parse(localStorage.getItem('proctor_faculty_accounts')||'{}');
-  const acc=accounts[email];
-  if(!acc||acc.password!==pass){showErr('f-err','Email or password is incorrect.');return;}
-  localStorage.setItem('proctor_session',JSON.stringify({role:'faculty',name:acc.name,email,loginTime:new Date().toISOString()}));
-  window.location.href='faculty.html';
+  const btn=document.querySelector('#f-login .btn-submit');
+  btn.disabled=true; btn.textContent='Signing in…';
+  try{
+    const data = await facultyLogin(email,pass);
+    sessionStorage.setItem('proctor_session', JSON.stringify({role:'faculty',name:data.name,email:data.email,loginTime:new Date().toISOString()}));
+    window.location.href='faculty.html';
+  }catch(e){
+    showErr('f-err', e.message||'Login failed.');
+    btn.disabled=false; btn.textContent='ACCESS DASHBOARD →';
+  }
 }
 
-function facultyRegister(){
+async function facultyRegisterSubmit(){
   clearErr('f-reg-err');document.getElementById('f-reg-succ').classList.remove('show');
-  const name=document.getElementById('f-reg-name').value.trim();
-  const email=document.getElementById('f-reg-email').value.trim().toLowerCase();
-  const pass=document.getElementById('f-reg-pass').value;
-  const pass2=document.getElementById('f-reg-pass2').value;
+  const name  = document.getElementById('f-reg-name').value.trim();
+  const email = document.getElementById('f-reg-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('f-reg-pass').value;
+  const pass2 = document.getElementById('f-reg-pass2').value;
   if(!name||!email||!pass||!pass2){showErr('f-reg-err','Fill in all fields.');return;}
   if(!email.includes('@')){showErr('f-reg-err','Invalid email.');return;}
   if(pass.length<6){showErr('f-reg-err','Password must be at least 6 characters.');return;}
   if(pass!==pass2){showErr('f-reg-err','Passwords do not match.');return;}
-  const accounts=JSON.parse(localStorage.getItem('proctor_faculty_accounts')||'{}');
-  if(accounts[email]){showErr('f-reg-err','Account with this email already exists.');return;}
-  accounts[email]={name,email,password:pass,createdAt:new Date().toISOString()};
-  localStorage.setItem('proctor_faculty_accounts',JSON.stringify(accounts));
-  document.getElementById('f-reg-succ').classList.add('show');
-  setTimeout(()=>{facTab('login');document.getElementById('f-email').value=email;},1500);
+  const btn=document.querySelector('#f-register .btn-submit');
+  btn.disabled=true; btn.textContent='Creating…';
+  try{
+    await facultyRegister(name,email,pass);
+    document.getElementById('f-reg-succ').classList.add('show');
+    setTimeout(()=>{facTab('login');document.getElementById('f-email').value=email;},1500);
+  }catch(e){
+    showErr('f-reg-err', e.message||'Registration failed.');
+  }
+  btn.disabled=false; btn.textContent='CREATE ACCOUNT →';
 }
 
 document.addEventListener('keydown',e=>{
   if(e.key!=='Enter')return;
   if(document.getElementById('form-faculty').classList.contains('active')){
-    if(document.getElementById('f-login').classList.contains('active'))facultyLogin();else facultyRegister();
+    if(document.getElementById('f-login').classList.contains('active'))facultyLogin();else facultyRegisterSubmit();
   }else{
     studentLogin();
   }
